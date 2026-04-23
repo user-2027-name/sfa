@@ -1,74 +1,38 @@
-# エックスサーバーへのデプロイガイド (Next.js Standalone版)
+# SFA App デプロイ・運用ガイド (Vercel + Supabase 版)
 
-このSFA・工程管理システムをエックスサーバー（共有レンタルサーバー）のNode.js機能で運用するための手順です。
+現在のシステムは **Vercel (フロントエンド/API)** と **Supabase (データベース)** を組み合わせたモダンな構成になっています。
 
-## 1. 事前準備 (ローカル環境)
+## 1. 構成概要
+- **Frontend/Backend**: Next.js (App Router)
+- **Database**: PostgreSQL (Supabase)
+- **Authentication**: NextAuth.js (Google OAuth)
+- **Infrastructure**: Vercel
 
-### 1.1 `next.config.ts` の確認
-`output: 'standalone'` が設定されていることを確認してください。これにより、実行に必要な最小限のファイルが抽出されます。
+## 2. 環境変数の設定 (Vercel)
+Vercel のプロジェクト設定で以下の環境変数が正しく設定されている必要があります。
 
-### 1.2 本番用ビルドの実行
-ターミナルで以下のコマンドを実行します。
+| キー | 内容 | 例 |
+| :--- | :--- | :--- |
+| `POSTGRES_URL` | Supabase の接続文字列 | `postgres://postgres:[pw]@...` |
+| `NEXTAUTH_SECRET` | セッション暗号化用ランダム文字列 | (任意の長い文字列) |
+| `GOOGLE_CLIENT_ID` | Google OAuth クライアントID | `xxx.apps.googleusercontent.com` |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth シークレット | (Google Cloud Consoleから取得) |
+| `CRON_SECRET` | 定期実行(Cron)保護用キー | (任意の文字列) |
 
-```bash
-npm run build
-```
+> [!IMPORTANT]
+> **NEXTAUTH_URL について**
+> Vercel では通常、`NEXTAUTH_URL` を設定しなくても自動認識されます。ログインエラーが出る場合は、この環境変数を削除するか、公開ドメインと完全に一致させてください。
 
-ビルド完了後、以下のディレクトリが重要になります：
-- `.next/standalone/` : サーバー実行に必要なファイル群
-- `.next/static/` : クライアント側の静的ファイル
-- `public/` : 画像などの静的アセット
-- `sfa.db` : SQLite データベース
+## 3. ログインの管理
+ユーザーのログイン可否は Supabase の `employees` テーブルで管理されています。
+1. Supabase の Table Editor で `employees` テーブルを開きます。
+2. ログインを許可したいユーザーの `email` (Googleアカウント) を追加します。
+3. `role` を `admin` または `user` に設定します。
 
-## 2. サーバーへのアップロード
+## 4. 定期タスク (Cron)
+Vercel Cron または外部ツール (GitHub Actions 等) を使用して、以下のエンドポイントを定期的に叩くことでリマインダーや定期案件生成が動作します。
+- `GET /api/cron/reminders` (毎日 09:00 推奨)
+- `POST /api/recurring` (月初 00:00 推奨)
 
-FTP（FileZilla等）またはエックスサーバーのファイルマネージャを使用してアップロードします。
-
-### 2.1 アップロード構成
-ドメインのディレクトリ（例: `example.com/`）の中に、アプリ用のディレクトリ（例: `sfa-app/`）を作成し、以下のように配置します。
-
-```text
-sfa-app/
-├── .env.local (サーバー用に作成)
-├── sfa.db
-├── server.js (standalone/server.js を移動)
-├── package.json (standalone/package.json を移動)
-├── node_modules/ (standalone/node_modules を丸ごと)
-├── .next/ (standalone/.next を丸ごと)
-│   └── static/ (ビルド後の .next/static をここへコピー/アップロード)
-└── public/ (ルートの public フォルダをここへ)
-```
-
-> [!TIP]
-> **効率的なアップロード方法**
-> `standalone` フォルダの中身をベースにし、そこに `public` と `.next/static` を追加する形になります。
-
-## 3. サーバー上での設定
-
-### 3.1 Node.jsの有効化
-1. エックスサーバーのサーバーパネルにログインします。
-2. 「Node.js設定」を選択し、対象ドメインで Node.js を **有効** にします（バージョン 18 以上を推奨）。
-3. 「アプリ公開」設定にて、以下の設定を行います：
-   - **アプリディレクトリ**: `/sfa-app` (アップロードした場所)
-   - **実行コマンド**: `node server.js`
-   - **公開ディレクトリ**: 指定なし（Node.jsアプリとして動作させるため）
-
-### 3.2 権限（パーミッション）の設定
-SQLiteの書き込みを許可するため、以下のパーミッションを確認してください。
-
-- `sfa.db` ファイル: **606**
-- `sfa-app` ディレクトリ: **705**
-
-### 3.3 環境変数の設定
-`.env.local` をサーバー上に作成し、必要な値を設定します。
-特に `NEXT_PUBLIC_API_URL` は実際のドメイン名に変更してください。
-
-```env
-NEXT_PUBLIC_API_URL=https://your-domain.com
-CRON_SECRET=...
-SHARED_WEBHOOK_URL=...
-```
-
-## 4. 注意事項
-- **メール送信**: 現在の `api/mail/send` はログ出力のシミュレーションです。実運用には `nodemailer` 等を使用した SMTP 連携が必要です。
-- **DBのバックアップ**: SQLite を使用しているため、定期的に `sfa.db` を手動または自動でバックアップすることを強く推奨します。
+## 5. データベースのバックアップ
+Supabase の管理画面から自動バックアップの設定を確認してください。
