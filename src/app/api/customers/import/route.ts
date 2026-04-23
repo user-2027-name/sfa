@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     }
     
     await sql`
-      INSERT INTO customers ${sql(data, 'id', 'name', 'status')}
+      INSERT INTO customers ${(sql as any)(data, 'id', 'name', 'status')}
       ON CONFLICT(id) DO UPDATE SET
         name = EXCLUDED.name,
         status = EXCLUDED.status

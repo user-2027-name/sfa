@@ -10,7 +10,7 @@ export async function POST(request: Request) {
     
     // postgres.js での一括挿入とON CONFLICT
     await sql`
-      INSERT INTO employees ${sql(data, 'id', 'name', 'department', 'role', 'notification_webhook')}
+      INSERT INTO employees ${(sql as any)(data, 'id', 'name', 'department', 'role', 'notification_webhook')}
       ON CONFLICT(id) DO UPDATE SET
         name = EXCLUDED.name,
         department = EXCLUDED.department,

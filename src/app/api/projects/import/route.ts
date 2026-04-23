@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     }
 
     await sql`
-      INSERT INTO projects ${sql(validData, 'id', 'name', 'contract_type', 'status', 'amount', 'order_date', 'deadline')}
+      INSERT INTO projects ${(sql as any)(validData, 'id', 'name', 'contract_type', 'status', 'amount', 'order_date', 'deadline')}
       ON CONFLICT(id) DO UPDATE SET
         name = EXCLUDED.name,
         contract_type = EXCLUDED.contract_type,
