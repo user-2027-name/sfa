@@ -46,7 +46,7 @@ const handler = NextAuth({
     signIn: '/login',
   },
   secret: process.env.NEXTAUTH_SECRET,
-  // 安定したクッキー設定を維持
+  // 以前成功したクッキー設定を念のため維持
   cookies: {
     callbackUrl: {
       name: `__Secure-next-auth.callback-url`,
