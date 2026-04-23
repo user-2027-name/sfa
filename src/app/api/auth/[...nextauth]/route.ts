@@ -11,13 +11,13 @@ const handler = NextAuth({
   ],
   callbacks: {
     async signIn({ user }) {
-      const email = user.email || '';
+      const email = (user.email || '').toLowerCase();
       if (!email.endsWith('@ims-hirosaki.com')) {
         return false;
       }
 
       try {
-        const employees = await sql`SELECT id FROM employees WHERE email = ${email}`;
+        const employees = await sql`SELECT id FROM employees WHERE LOWER(email) = ${email}`;
         if (employees.length > 0) {
           return true;
         } else {
@@ -31,7 +31,8 @@ const handler = NextAuth({
     },
     async session({ session }) {
       if (session.user && session.user.email) {
-        const employees = await sql`SELECT id, role FROM employees WHERE email = ${session.user.email}`;
+        const email = session.user.email.toLowerCase();
+        const employees = await sql`SELECT id, role FROM employees WHERE LOWER(email) = ${email}`;
         if (employees.length > 0) {
           const employee = employees[0];
           (session.user as any).id = employee.id;
