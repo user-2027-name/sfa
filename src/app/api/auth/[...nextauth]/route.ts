@@ -12,16 +12,23 @@ const handler = NextAuth({
   callbacks: {
     async signIn({ user }) {
       const email = (user.email || '').toLowerCase();
+      console.log('--- Auth Debug ---');
+      console.log('Incoming Email:', email);
+      
       if (!email.endsWith('@ims-hirosaki.com')) {
+        console.warn('Domain mismatch:', email);
         return false;
       }
 
       try {
-        const employees = await sql`SELECT id FROM employees WHERE LOWER(email) = ${email}`;
+        const employees = await sql`SELECT id, name, email FROM employees WHERE LOWER(email) = ${email}`;
+        console.log('DB Query Result:', employees);
+        
         if (employees.length > 0) {
+          console.log('Access Granted for:', employees[0].name);
           return true;
         } else {
-          console.warn(`Sign-in denied: ${email} not found in employee master.`);
+          console.warn('Sign-in denied: Email not found in DB table:', email);
           return false;
         }
       } catch (error) {
