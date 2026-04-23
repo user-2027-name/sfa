@@ -1,7 +1,7 @@
 import NextAuth from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
+import sql from '@/lib/db';
 
-// 超シンプル版：まずはログインができるかだけを確認
 const handler = NextAuth({
   providers: [
     GoogleProvider({
@@ -9,9 +9,58 @@ const handler = NextAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     }),
   ],
+  callbacks: {
+    async signIn({ user }) {
+      const email = (user.email || '').toLowerCase();
+      if (!email.endsWith('@ims-hirosaki.com')) {
+        return false;
+      }
+
+      try {
+        const employees = await sql`SELECT id FROM employees WHERE LOWER(email) = ${email}`;
+        if (employees.length > 0) {
+          return true;
+        } else {
+          console.warn(`Sign-in denied: ${email} not found in employee master.`);
+          return false;
+        }
+      } catch (error) {
+        console.error('Auth DB check error:', error);
+        return false;
+      }
+    },
+    async session({ session }) {
+      if (session.user && session.user.email) {
+        const email = session.user.email.toLowerCase();
+        const employees = await sql`SELECT id, role FROM employees WHERE LOWER(email) = ${email}`;
+        if (employees.length > 0) {
+          const employee = employees[0];
+          (session.user as any).id = employee.id;
+          (session.user as any).role = employee.role;
+        }
+      }
+      return session;
+    },
+  },
+  pages: {
+    signIn: '/login',
+  },
   secret: process.env.NEXTAUTH_SECRET,
-  // Vercel用の信頼設定
-  trustHost: true,
+  // 安定したクッキー設定を維持
+  cookies: {
+    callbackUrl: {
+      name: `__Secure-next-auth.callback-url`,
+      options: { sameSite: 'lax', path: '/', secure: true }
+    },
+    csrfToken: {
+      name: `__Host-next-auth.csrf-token`,
+      options: { sameSite: 'lax', path: '/', secure: true }
+    },
+    state: {
+      name: `__Secure-next-auth.state`,
+      options: { sameSite: 'lax', path: '/', secure: true }
+    }
+  }
 });
 
 export { handler as GET, handler as POST };
