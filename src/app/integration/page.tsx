@@ -1,15 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function IntegrationPage() {
   const [url, setUrl] = useState('https://example.com');
   const [targetUrl, setTargetUrl] = useState('https://example.com');
   const [settings, setSettings] = useState<any>({});
 
-  useState(() => {
+  useEffect(() => {
     fetch('/api/settings').then(res => res.json()).then(data => setSettings(data));
-  });
+  }, []);
 
   const handleGo = (e: React.FormEvent) => {
     e.preventDefault();
