@@ -5,7 +5,16 @@ import postgres from 'postgres';
 const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
 
 if (!connectionString) {
+  console.error('DATABASE_URL or POSTGRES_URL environment variable is not set');
   throw new Error('DATABASE_URL or POSTGRES_URL environment variable is not set');
+}
+
+try {
+  const url = new URL(connectionString);
+  console.log('--- DB Check ---');
+  console.log('Hostname:', url.hostname);
+} catch (e) {
+  console.error('Invalid connection string format');
 }
 
 const sql = postgres(connectionString, {
