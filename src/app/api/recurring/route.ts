@@ -35,7 +35,7 @@ export async function POST() {
 
         await sql`UPDATE projects SET recurring_last_processed = ${currentMonthStr} WHERE id = ${project.id}`;
         
-        if (project.notify_external) {
+        if (project.notify_external === 1 || project.notify_external === true) {
           await sendNotification(project.id, `翌月 (${nextMonthStr}) のリカーリングタスク（制作・納品）を自動生成しました。`, project.notification_webhook);
         }
 

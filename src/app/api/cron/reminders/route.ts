@@ -21,7 +21,7 @@ export async function GET(request: Request) {
       SELECT * FROM projects 
       WHERE deadline = ${targetStr} 
       AND status NOT IN ('完了', '失注') 
-      AND notify_external = 1
+      AND (notify_external = 1 OR notify_external = true)
     `;
 
     for (const project of upcomingProjects) {
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
       JOIN projects p ON t.project_id = p.id
       WHERE t.due_date = ${targetStr} 
       AND t.status != '完了' 
-      AND p.notify_external = 1
+      AND (p.notify_external = 1 OR p.notify_external = true)
     `;
 
     for (const task of upcomingTasks) {

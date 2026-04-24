@@ -12,20 +12,22 @@ const handler = NextAuth({
   callbacks: {
     async signIn({ user }) {
       const email = (user.email || '').toLowerCase();
+
       if (!email.endsWith('@ims-hirosaki.com')) {
         return false;
       }
 
       try {
-        const employees = await sql`SELECT id FROM employees WHERE LOWER(email) = ${email}`;
+        const employees = await sql`SELECT id, name FROM employees WHERE LOWER(email) = ${email}`;
+        
         if (employees.length > 0) {
           return true;
         } else {
-          console.warn(`Sign-in denied: ${email} not found in employee master.`);
+          console.warn('User not found in employees table:', email);
           return false;
         }
       } catch (error) {
-        console.error('Auth DB check error:', error);
+        console.error('Auth DB Error:', error);
         return false;
       }
     },
