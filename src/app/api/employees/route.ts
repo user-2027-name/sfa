@@ -16,8 +16,8 @@ export async function POST(request: Request) {
     const { name, department, role, notification_webhook, email } = await request.json();
     
     // バリデーション
-    if (!name || !department) {
-      return NextResponse.json({ error: '名前と部署は必須です' }, { status: 400 });
+    if (!name) {
+      return NextResponse.json({ error: '名前は必須です' }, { status: 400 });
     }
     if (name.length > 100 || (email && email.length > 255)) {
       return NextResponse.json({ error: '入力値が長すぎます' }, { status: 400 });
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
     const result = await sql`
       INSERT INTO employees (name, department, role, notification_webhook, email) 
-      VALUES (${name}, ${department}, ${role}, ${notification_webhook}, ${email})
+      VALUES (${name}, ${department || null}, ${role}, ${notification_webhook || null}, ${email || null})
       RETURNING id
     `;
     
@@ -50,11 +50,11 @@ export async function PATCH(request: Request) {
 
     await sql`
       UPDATE employees SET
-        name = COALESCE(${name || null}, name),
-        department = COALESCE(${department || null}, department),
-        role = COALESCE(${role || null}, role),
-        notification_webhook = COALESCE(${notification_webhook || null}, notification_webhook),
-        email = COALESCE(${email || null}, email)
+        name = ${name},
+        department = ${department || null},
+        role = ${role},
+        notification_webhook = ${notification_webhook || null},
+        email = ${email || null}
       WHERE id = ${id}
     `;
 
