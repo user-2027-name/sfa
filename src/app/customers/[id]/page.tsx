@@ -12,6 +12,8 @@ interface Customer {
   status: string;
   customer_rep: string;
   address: string;
+  position?: string;
+  postal_code?: string;
 }
 
 interface Project {
@@ -82,7 +84,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
             </div>
             <div>
               <label className="label">先方担当者</label>
-              <div>👤 {customer.customer_rep || '未設定'}</div>
+              <div>👤 {customer.customer_rep || '未設定'} {customer.position && `（${customer.position}）`}</div>
             </div>
             <div>
               <label className="label">取引状況</label>
@@ -104,7 +106,9 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
             </div>
             <div>
               <label className="label">住所</label>
-              <div style={{ fontSize: '0.85rem' }}>📍 {customer.address || '-'}</div>
+              <div style={{ fontSize: '0.85rem' }}>
+                📍 {customer.postal_code ? `〒${customer.postal_code} ` : ''}{customer.address || '-'}
+              </div>
             </div>
           </div>
         </div>

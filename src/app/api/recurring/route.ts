@@ -19,7 +19,7 @@ export async function POST() {
 
     let processedCount = 0;
 
-    await sql.begin(async (sql) => {
+    await sql.begin(async (sql: any) => {
       for (const project of projects) {
         const tasks = [
           { name: '制作 (定期)', due: nextMonthLastDay },

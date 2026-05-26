@@ -18,7 +18,7 @@ interface Project {
   name: string;
   contract_type: string;
   status: string;
-  amount: number;
+  amount: number | '';
   order_date: string;
   deadline: string;
   sales_rep_id: number | null;
@@ -30,6 +30,7 @@ interface Project {
   production_rep_email?: string;
   customer_name?: string;
   created_at?: string;
+  discussion_date?: string;
 }
 
 export default function ProjectsPage() {
@@ -43,9 +44,10 @@ export default function ProjectsPage() {
   const [customerId, setCustomerId] = useState('');
   const [contractType, setContractType] = useState('単発');
   const [status, setStatus] = useState('商談');
-  const [amount, setAmount] = useState(0);
+  const [amount, setAmount] = useState<number | ''>('');
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
   const [deadline, setDeadline] = useState('');
+  const [discussionDate, setDiscussionDate] = useState('');
   const [salesRepId, setSalesRepId] = useState('');
   const [productionRepId, setProductionRepId] = useState('');
   const [notifyExternal, setNotifyExternal] = useState(false);
@@ -136,16 +138,19 @@ export default function ProjectsPage() {
         production_webhook: productionWebhook,
         notes,
         template_id: templateId,
-        shared_drive_url: sharedDriveUrl
+        shared_drive_url: sharedDriveUrl,
+        discussion_date: discussionDate
       }),
     });
     if (res.ok) {
+      alert('登録しました');
       setName('');
       setCustomerId('');
       setCustomerSearch('');
       setContractType('単発');
-      setAmount(0);
+      setAmount('');
       setDeadline('');
+      setDiscussionDate('');
       setTemplateId('standard');
       setSalesWebhook('');
       setProductionWebhook('');
@@ -301,8 +306,8 @@ export default function ProjectsPage() {
           <tr>
             <th style={{ width: '130px' }}>案件ID</th>
             <th>発注元 / 案件名</th>
-            <th>金額</th>
-            <th>受注日 / 納期</th>
+            <th>見積額（税込）</th>
+            <th>日程（受/期/談）</th>
             <th>登録日</th>
             <th>担当者</th>
             <th>ステータス</th>
@@ -339,10 +344,11 @@ export default function ProjectsPage() {
                 </Link>
                 <div style={{ fontWeight: 600 }}>{project.name}</div>
               </td>
-              <td style={{ fontSize: '0.9rem' }}>¥{project.amount.toLocaleString()}</td>
+              <td style={{ fontSize: '0.9rem' }}>{project.amount !== '' ? `¥${Number(project.amount).toLocaleString()}` : '-'}</td>
               <td style={{ fontSize: '0.8rem' }}>
                 <div>受: {project.order_date}</div>
                 <div style={{ color: 'var(--text-muted)' }}>期: {project.deadline || '-'}</div>
+                {project.discussion_date && <div style={{ color: 'var(--primary)' }}>談: {project.discussion_date}</div>}
               </td>
               <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 {project.created_at ? project.created_at.split(' ')[0] : '-'}
@@ -488,14 +494,28 @@ export default function ProjectsPage() {
           </div>
 
           <div className="form-group">
-            <label className="label">金額</label>
-            <input type="number" className="input" value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
+            <label className="label">見積額（税込）</label>
+            <input 
+              type="number" 
+              className="input" 
+              placeholder="0" 
+              value={amount} 
+              onChange={(e) => setAmount(e.target.value === '' ? '' : Number(e.target.value))} 
+            />
           </div>
           <div className="form-group">
             <label className="label">納期 📅</label>
             <input type="date" className="input" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
           </div>
           <div className="form-group">
+            <label className="label">商談予定日 📅</label>
+            <input type="date" className="input" value={discussionDate} onChange={(e) => setDiscussionDate(e.target.value)} />
+          </div>
+          <div className="form-group" style={{ visibility: 'hidden' }}>
+            {/* ダミー要素 */}
+          </div>
+
+          <div className="form-group" style={{ gridColumn: 'span 2' }}>
             <label className="label">営業担当者</label>
             <select className="select" value={salesRepId} onChange={(e) => handleSalesRepChange(e.target.value)}>
               <option value="">選択してください</option>
@@ -504,7 +524,7 @@ export default function ProjectsPage() {
               ))}
             </select>
           </div>
-          <div className="form-group">
+          <div className="form-group" style={{ gridColumn: 'span 2' }}>
             <label className="label">制作担当者</label>
             <select className="select" value={productionRepId} onChange={(e) => handleProductionRepChange(e.target.value)}>
               <option value="">選択してください</option>
@@ -679,8 +699,23 @@ export default function ProjectsPage() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
-                  <label className="label">金額</label>
-                  <input type="number" className="input" value={editForm.amount} onChange={(e) => setEditForm({...editForm, amount: Number(e.target.value)})} />
+                  <label className="label">見積額（税込）</label>
+                  <input 
+                    type="number" 
+                    className="input" 
+                    placeholder="0"
+                    value={editForm.amount === null || editForm.amount === undefined ? '' : editForm.amount} 
+                    onChange={(e) => setEditForm({...editForm, amount: e.target.value === '' ? '' : Number(e.target.value)})} 
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="label">商談予定日</label>
+                  <input 
+                    type="date" 
+                    className="input" 
+                    value={editForm.discussion_date || ''} 
+                    onChange={(e) => setEditForm({...editForm, discussion_date: e.target.value})} 
+                  />
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>

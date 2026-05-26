@@ -12,6 +12,8 @@ interface Customer {
   status: string;
   customer_rep?: string;
   address?: string;
+  position?: string;
+  postal_code?: string;
 }
 
 export default function CustomersPage() {
@@ -22,6 +24,8 @@ export default function CustomersPage() {
   const [status, setStatus] = useState('見込み');
   const [customerRep, setCustomerRep] = useState('');
   const [address, setAddress] = useState('');
+  const [position, setPosition] = useState('');
+  const [postal_code, setPostalCode] = useState('');
   
   // Edit states
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -42,14 +46,17 @@ export default function CustomersPage() {
     const res = await fetch('/api/customers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, phone, email, status, customer_rep: customerRep, address }),
+      body: JSON.stringify({ name, phone, email, status, customer_rep: customerRep, address, position, postal_code }),
     });
     if (res.ok) {
+      alert('登録しました');
       setName('');
       setPhone('');
       setEmail('');
       setCustomerRep('');
       setAddress('');
+      setPosition('');
+      setPostalCode('');
       fetchCustomers();
     }
   };
@@ -162,13 +169,17 @@ export default function CustomersPage() {
                 <Link href={`/customers/${customer.id}`} style={{ fontWeight: 600, color: 'var(--primary)', textDecoration: 'none' }}>
                   {customer.name}
                 </Link>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>👤 {customer.customer_rep || '担当者未設定'}</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  👤 {customer.customer_rep || '担当者未設定'}
+                  {customer.position && ` (${customer.position})`}
+                </div>
               </td>
               <td>
                 <div style={{ fontSize: '0.875rem' }}>{customer.phone || '-'}</div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--primary)' }}>{customer.email || '-'}</div>
               </td>
               <td>
+                {customer.postal_code && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>〒{customer.postal_code}</div>}
                 <div style={{ fontSize: '0.8rem', maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={customer.address}>
                   {customer.address || '-'}
                 </div>
@@ -213,7 +224,7 @@ export default function CustomersPage() {
       <div className="glass-panel" style={{ marginBottom: '2rem' }}>
         <h3 style={{ marginBottom: '1.5rem' }}>新規顧客登録</h3>
         <form onSubmit={handleSubmit}>
-          <div className="grid-responsive" style={{ gridTemplateColumns: '2fr 1fr 1fr', marginBottom: '1.5rem' }}>
+          <div className="grid-responsive" style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr', marginBottom: '1.5rem' }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="label">顧客名 (会社名)</label>
               <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="株式会社サンプル" required />
@@ -221,6 +232,10 @@ export default function CustomersPage() {
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="label">先方担当者名</label>
               <input className="input" placeholder="◯◯ 様" value={customerRep} onChange={(e) => setCustomerRep(e.target.value)} />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="label">役職名</label>
+              <input className="input" placeholder="部長 など" value={position} onChange={(e) => setPosition(e.target.value)} />
             </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="label">取引状況</label>
@@ -232,7 +247,11 @@ export default function CustomersPage() {
             </div>
           </div>
 
-          <div className="grid-responsive" style={{ gridTemplateColumns: '2fr 1fr 1fr', marginBottom: '1.5rem' }}>
+          <div className="grid-responsive" style={{ gridTemplateColumns: '1fr 2fr 1fr 1fr', marginBottom: '1.5rem' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="label">郵便番号</label>
+              <input className="input" placeholder="150-0002" value={postal_code} onChange={(e) => setPostalCode(e.target.value)} />
+            </div>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="label">住所</label>
               <input className="input" placeholder="東京都... (任意)" value={address} onChange={(e) => setAddress(e.target.value)} />
@@ -272,9 +291,15 @@ export default function CustomersPage() {
                 <label className="label">顧客名 (会社名)</label>
                 <input className="input" value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} />
               </div>
-              <div className="form-group">
-                <label className="label">先方担当者名</label>
-                <input className="input" value={editForm.customer_rep || ''} onChange={(e) => setEditForm({...editForm, customer_rep: e.target.value})} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="label">先方担当者名</label>
+                  <input className="input" value={editForm.customer_rep || ''} onChange={(e) => setEditForm({...editForm, customer_rep: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="label">役職名</label>
+                  <input className="input" value={editForm.position || ''} onChange={(e) => setEditForm({...editForm, position: e.target.value})} />
+                </div>
               </div>
               <div className="form-group">
                 <label className="label">電話番号</label>
@@ -292,9 +317,15 @@ export default function CustomersPage() {
                   <option value="休止中">休止中</option>
                 </select>
               </div>
-              <div className="form-group">
-                <label className="label">住所</label>
-                <input className="input" value={editForm.address || ''} onChange={(e) => setEditForm({...editForm, address: e.target.value})} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="label">郵便番号</label>
+                  <input className="input" value={editForm.postal_code || ''} onChange={(e) => setEditForm({...editForm, postal_code: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="label">住所</label>
+                  <input className="input" value={editForm.address || ''} onChange={(e) => setEditForm({...editForm, address: e.target.value})} />
+                </div>
               </div>
               
               <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>

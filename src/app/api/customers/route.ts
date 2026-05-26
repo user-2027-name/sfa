@@ -30,15 +30,15 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { name, phone, email, status, customer_rep, address } = await request.json();
+    const { name, phone, email, status, customer_rep, address, position, postal_code } = await request.json();
     const result = await sql`
-      INSERT INTO customers (name, phone, email, status, customer_rep, address) 
-      VALUES (${name}, ${phone}, ${email}, ${status}, ${customer_rep}, ${address})
+      INSERT INTO customers (name, phone, email, status, customer_rep, address, position, postal_code) 
+      VALUES (${name}, ${phone}, ${email}, ${status}, ${customer_rep}, ${address}, ${position || null}, ${postal_code || null})
       RETURNING id
     `;
     return NextResponse.json({ 
       id: result[0].id, 
-      name, phone, email, status, customer_rep, address 
+      name, phone, email, status, customer_rep, address, position, postal_code 
     });
   } catch (error) {
     console.error('Create customer error:', error);
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const { id, name, phone, email, status, customer_rep, address } = await request.json();
+    const { id, name, phone, email, status, customer_rep, address, position, postal_code } = await request.json();
     
     if (!id) return NextResponse.json({ error: 'Missing customer ID' }, { status: 400 });
 
@@ -59,7 +59,9 @@ export async function PATCH(request: Request) {
         email = COALESCE(${email || null}, email),
         status = COALESCE(${status || null}, status),
         customer_rep = COALESCE(${customer_rep || null}, customer_rep),
-        address = COALESCE(${address || null}, address)
+        address = COALESCE(${address || null}, address),
+        position = COALESCE(${position || null}, position),
+        postal_code = COALESCE(${postal_code || null}, postal_code)
       WHERE id = ${id}
     `;
 

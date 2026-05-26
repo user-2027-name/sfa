@@ -36,7 +36,9 @@ export default function Home() {
       const customers = await cRes.json();
       const employees = await eRes.json();
 
-      const totalRev = projects.reduce((acc: number, p: any) => acc + (p.amount || 0), 0);
+      const totalRev = projects
+        .filter((p: any) => p.status === '受注' || p.status === '制作' || p.status === '完了')
+        .reduce((acc: number, p: any) => acc + (p.amount || 0), 0);
 
       setStats({
         projects: projects.length,

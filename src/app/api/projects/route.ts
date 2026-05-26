@@ -51,13 +51,14 @@ export async function POST(request: Request) {
     const { 
       name, contract_type, status, amount, order_date, deadline, 
       sales_rep_id, production_rep_id, customer_id, 
-      notify_external, sales_webhook, production_webhook, notes, template_id, shared_drive_url
+      notify_external, sales_webhook, production_webhook, notes, template_id, shared_drive_url, discussion_date
     } = await request.json();
 
     const dateStr = order_date.replace(/-/g, '');
     const typeCode = contract_type === '月額定額' ? 'R' : 'S';
+    const parsedAmount = amount === '' || amount === undefined ? 0 : Number(amount);
     
-    const projectId = await sql.begin(async (sql) => {
+    const projectId = await sql.begin(async (sql: any) => {
       const seqRows = await sql`
         SELECT last_val FROM project_sequences 
         WHERE date = ${dateStr} AND type = ${typeCode}
@@ -87,12 +88,12 @@ export async function POST(request: Request) {
           id, name, contract_type, status, amount, order_date, deadline, 
           sales_rep_id, production_rep_id, customer_id, 
           notify_external, sales_webhook, production_webhook,
-          status_negotiation_at, status_order_at, status_progress_at, status_done_at, notes, shared_drive_url
+          status_negotiation_at, status_order_at, status_progress_at, status_done_at, notes, shared_drive_url, discussion_date
         ) VALUES (
-          ${newProjectId}, ${name}, ${contract_type}, ${status}, ${amount}, ${order_date}, ${deadline}, 
-          ${sales_rep_id}, ${production_rep_id}, ${customer_id}, 
+          ${newProjectId}, ${name}, ${contract_type}, ${status}, ${parsedAmount}, ${order_date}, ${deadline || null}, 
+          ${sales_rep_id || null}, ${production_rep_id || null}, ${customer_id || null}, 
           ${notify_external ? 1 : 0}, ${sales_webhook}, ${production_webhook},
-          ${negAt}, ${ordAt}, ${progAt}, ${doneAt}, ${notes}, ${shared_drive_url}
+          ${negAt}, ${ordAt}, ${progAt}, ${doneAt}, ${notes}, ${shared_drive_url}, ${discussion_date || null}
         )
       `;
       
@@ -131,7 +132,7 @@ export async function PATCH(request: Request) {
     const data = await request.json();
     const { 
       id, name, customer_id, contract_type, status, amount, order_date, deadline, 
-      sales_rep_id, production_rep_id, notify_external, sales_webhook, production_webhook, notes, shared_drive_url
+      sales_rep_id, production_rep_id, notify_external, sales_webhook, production_webhook, notes, shared_drive_url, discussion_date
     } = data;
 
     if (!id) return NextResponse.json({ error: 'Missing project ID' }, { status: 400 });
@@ -154,13 +155,15 @@ export async function PATCH(request: Request) {
       }
     }
 
+    const parsedAmount = amount === '' || amount === undefined ? null : Number(amount);
+
     await sql`
       UPDATE projects SET
         name = COALESCE(${name || null}, name),
         customer_id = COALESCE(${customer_id || null}, customer_id),
         contract_type = COALESCE(${contract_type || null}, contract_type),
         status = COALESCE(${status || null}, status),
-        amount = COALESCE(${amount || null}, amount),
+        amount = COALESCE(${parsedAmount}, amount),
         order_date = COALESCE(${order_date || null}, order_date),
         deadline = COALESCE(${deadline || null}, deadline),
         sales_rep_id = COALESCE(${sales_rep_id || null}, sales_rep_id),
@@ -174,7 +177,8 @@ export async function PATCH(request: Request) {
         status_negotiation_at = COALESCE(status_negotiation_at, ${negAt}),
         status_order_at = COALESCE(status_order_at, ${ordAt}),
         status_progress_at = COALESCE(status_progress_at, ${progAt}),
-        status_done_at = COALESCE(status_done_at, ${doneAt})
+        status_done_at = COALESCE(status_done_at, ${doneAt}),
+        discussion_date = COALESCE(${discussion_date || null}, discussion_date)
       WHERE id = ${id}
     `;
 
@@ -213,7 +217,7 @@ export async function DELETE(request: Request) {
 
     if (!id) return NextResponse.json({ error: 'Missing project ID' }, { status: 400 });
 
-    await sql.begin(async (sql) => {
+    await sql.begin(async (sql: any) => {
       await sql`DELETE FROM tasks WHERE project_id = ${id}`;
       const result = await sql`DELETE FROM projects WHERE id = ${id} RETURNING id`;
       if (result.length === 0) throw new Error('Project not found in database');
