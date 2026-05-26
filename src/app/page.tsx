@@ -36,8 +36,9 @@ export default function Home() {
       const customers = await cRes.json();
       const employees = await eRes.json();
 
+      // 【計算修正】累計成約額は、すべての工程が無事に終わった「完了」ステータスの案件のみを集計する仕様に変更
       const totalRev = projects
-        .filter((p: any) => p.status === '受注' || p.status === '制作' || p.status === '完了')
+        .filter((p: any) => p.status === '完了')
         .reduce((acc: number, p: any) => acc + (p.amount || 0), 0);
 
       setStats({
@@ -164,11 +165,11 @@ export default function Home() {
       {/* Main Stats Row */}
       <div className="grid-responsive" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '3rem' }}>
         <div className="glass-panel" style={{ borderTop: '4px solid var(--primary)' }}>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>累計成約額</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>累計成約額（確定）</p>
           <h2 style={{ fontSize: '2rem' }}>¥{(stats.totalRevenue / 10000).toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>万</span></h2>
         </div>
         <div className="glass-panel" style={{ borderTop: '4px solid var(--accent)' }}>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>稼働中案件</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>すべての登録案件数</p>
           <h2 style={{ fontSize: '2rem' }}>{stats.projects} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>件</span></h2>
         </div>
         <div className="glass-panel" style={{ borderTop: '4px solid #ec4899' }}>
@@ -200,7 +201,7 @@ export default function Home() {
                   boxShadow: '0 0 20px rgba(59, 130, 246, 0.2)'
                 }}>
                   <div style={{ position: 'absolute', top: '-25px', width: '100%', textAlign: 'center', fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)' }}>
-                    ¥{(s.amount / 10000).toFixed(0)}w
+                    ¥{(s.amount / 10000).toFixed(0)}万
                   </div>
                 </div>
                 <div style={{ marginTop: '1rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-muted)' }}>{s.month.split('-')[1]}月</div>
