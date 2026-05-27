@@ -36,7 +36,7 @@ export default function Home() {
       const customers = await cRes.json();
       const employees = await eRes.json();
 
-      // 【計算修正】累計成約額は、すべての工程が無事に終わった「完了」ステータスの案件のみを集計する仕様に変更
+      // 【計算修正】累計成約額は、すべての工程が無事に終わった「完了」ステータスの案件のみを集計
       const totalRev = projects
         .filter((p: any) => p.status === '完了')
         .reduce((acc: number, p: any) => acc + (p.amount || 0), 0);
@@ -48,11 +48,13 @@ export default function Home() {
         totalRevenue: totalRev
       });
 
-      // Sales by Month
+      // 【計算修正】月別売上推移も、ダッシュボードの累計額と合わせるため「完了」ステータスの案件のみを集計
       const salesMap: Record<string, number> = {};
       projects.forEach((p: any) => {
-        const month = p.order_date.substring(0, 7);
-        salesMap[month] = (salesMap[month] || 0) + (p.amount || 0);
+        if (p.status === '完了') {
+          const month = p.order_date.substring(0, 7);
+          salesMap[month] = (salesMap[month] || 0) + (p.amount || 0);
+        }
       });
       setSalesByMonth(Object.entries(salesMap).sort().map(([month, amount]) => ({ month, amount })).slice(-6));
 
@@ -187,7 +189,8 @@ export default function Home() {
         <div className="glass-panel">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
             <h3>売上推移（直近6ヶ月）</h3>
-            <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>受注ベース</span>
+            {/* ラベルを実態に合わせて「確定ベース」に変更 */}
+            <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>確定ベース</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1.5rem', height: '250px', paddingBottom: '30px', paddingTop: '20px' }}>
             {salesByMonth.map((s, i) => (
@@ -207,6 +210,9 @@ export default function Home() {
                 <div style={{ marginTop: '1rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-muted)' }}>{s.month.split('-')[1]}月</div>
               </div>
             ))}
+            {salesByMonth.length === 0 && (
+              <div style={{ width: '100%', textAlign: 'center', color: 'var(--text-muted)', paddingBottom: '50px' }}>完了済みの売上データがまだありません</div>
+            )}
           </div>
         </div>
 
@@ -285,7 +291,7 @@ export default function Home() {
                   <p style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.2rem' }}>{alert.projectName}</p>
                   <p style={{ fontSize: '0.75rem', color: 'var(--danger)' }}>{alert.taskName} が期限切れ ({alert.dueDate})</p>
                 </div>
-                <Link href={`/projects/${alert.projectId}`} className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.7rem' }}>工程へ</Link>
+                <Link href={`/projects/${alert.projectId}`} className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.70rem' }}>工程へ</Link>
               </div>
             ))}
             {alerts.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>全ての工程が順調です ✨</p>}
