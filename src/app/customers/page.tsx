@@ -48,7 +48,7 @@ export default function CustomersPage() {
     setToastMessage(message);
     setTimeout(() => {
       setToastMessage(null);
-    }, 3000); // 3秒後に自動消滅
+    }, 3000);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,13 +110,13 @@ export default function CustomersPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('本当にこの顧客を削除しますか？関連する案件データがある場合はエラーになる可能性があります。')) return;
+    if (!confirm('本当にこの顧客を削除しますか？')) return;
     const res = await fetch(`/api/customers?id=${id}`, { method: 'DELETE' });
     if (res.ok) {
       fetchCustomers();
       showToast('🗑️ 顧客を削除しました');
     } else {
-      alert('削除に失敗しました。関連データを確認してください。');
+      alert('削除に失敗しました。');
     }
   };
 
@@ -149,7 +149,7 @@ export default function CustomersPage() {
           if (res.ok) successCount++;
         }
         fetchCustomers();
-        showToast(`📊 CSVから ${successCount} 件の顧客を一括インポートしました！`);
+        showToast(`📊 CSVから ${successCount} 件の顧客をインポートしました！`);
       }
     });
   };
@@ -168,7 +168,6 @@ export default function CustomersPage() {
           📂 CSVファイルをインポート
           <input type="file" accept=".csv" onChange={handleImportCSV} style={{ display: 'none' }} />
         </label>
-        <span style={{ marginLeft: '1rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>※ ヘッダー行に name, phone, email, status, customer_rep, address, position, postal_code を含むCSV</span>
       </div>
 
       <div className="grid-responsive" style={{ gridTemplateColumns: '1fr 2fr', alignItems: 'start', gap: '2rem' }}>
@@ -211,7 +210,7 @@ export default function CustomersPage() {
               <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="見込み">見込み</option>
                 <option value="契約中">契約中</option>
-                <option value="休止中">休止中</option>
+                <option value="休休中">休止中</option>
               </select>
             </div>
             <button type="submit" className="btn btn-primary" style={{ marginTop: '0.5rem' }}>顧客を登録する</button>
@@ -263,36 +262,33 @@ export default function CustomersPage() {
                 </div>
               </div>
             ))}
-            {customers.length === 0 && (
-              <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem' }}>登録された顧客データがまだありません。</p>
-            )}
           </div>
         </div>
       </div>
 
-      {/* 修正用ポップアップ（モーダル） - 高さとスクロールの調整を適用 */}
+      {/* 修正用ポップアップ（モーダル） */}
       {editingCustomer && editForm && (
         <div style={{
           position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
           background: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-          padding: '20px' // 👈 画面の上下に最低限の余白を確保
+          padding: '20px'
         }}>
           <div className="glass-panel" style={{
             width: '100%', maxWidth: '500px',
-            maxHeight: 'calc(100vh - 40px)', // 👈 画面からはみ出さない最大高さを設定
-            display: 'flex', flexDirection: 'column', // 👈 ヘッダーやフォームを縦並びに
-            padding: 0, overflow: 'hidden' // 👈 パネル自体のはみ出しをカット
+            maxHeight: 'calc(100vh - 60px)', // 👈 画面の高さに絶対に収める指定
+            display: 'flex', flexDirection: 'column',
+            padding: 0, overflow: 'hidden'
           }}>
-            {/* ポップアップのヘッダー（固定） */}
+            {/* 固定ヘッダー */}
             <div style={{ padding: '1.5rem 2rem 1rem 2rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
               <h3 style={{ margin: 0 }}>顧客情報の修正</h3>
             </div>
 
-            {/* スクロールする入力フォームエリア */}
+            {/* スクロールする入力エリア */}
             <form onSubmit={handleUpdateSubmit} style={{ 
-              padding: '1rem 2rem 2rem 2rem', 
-              overflowY: 'auto', // 👈 項目が多い場合はここだけスクロールさせる
+              padding: '1rem 2rem 1.5rem 2rem', 
+              overflowY: 'auto', // 👈 縦に長い場合はここがスクロールします
               flex: 1,
               display: 'flex', flexDirection: 'column', gap: '1.25rem'
             }}>
@@ -335,10 +331,10 @@ export default function CustomersPage() {
                 </div>
               </div>
               
-              {/* ボタンエリア（フォームの最下部に綺麗に収まります） */}
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', sticky: 'bottom' }}>
-                <button type=\"submit\" className=\"btn btn-primary\" style={{ flex: 1 }}>更新する</button>\r
-                <button type=\"button\" className=\"btn btn-secondary\" style={{ flex: 1 }} onClick={() => setEditingCustomer(null)}>キャンセル</button>\r
+              {/* ボタンエリア（常に入力項目の最下部にくっつきます） */}
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>更新する</button>
+                <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setEditingCustomer(null)}>キャンセル</button>
               </div>
             </form>
           </div>
