@@ -36,14 +36,14 @@ export default function Home() {
       const customers = await cRes.json();
       const employees = await eRes.json();
 
-      // 【計算ロジック変更】完了＝確定売上、それ以外の進行中＝見込み売上
+      // 【バグ修正】Number()で確実に数値型に変換してから足し算を行うように徹底
       const totalRev = projects
         .filter((p: any) => p.status === '完了')
-        .reduce((acc: number, p: any) => acc + (p.amount || 0), 0);
+        .reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0);
 
       const totalFore = projects
         .filter((p: any) => p.status === '受注' || p.status === '制作' || p.status === '商談')
-        .reduce((acc: number, p: any) => acc + (p.amount || 0), 0);
+        .reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0);
 
       setStats({
         projects: projects.length,
@@ -53,7 +53,7 @@ export default function Home() {
         totalForecast: totalFore
       });
 
-      // 【グラフ用集計】月ごとに「確定」と「見込み」をそれぞれ合算
+      // 【バグ修正】月ごとの集計でも、文字結合が起きないようNumber()変換を徹底
       const monthlyMap: Record<string, { confirmed: number, forecast: number }> = {};
       projects.forEach((p: any) => {
         const month = p.order_date.substring(0, 7);
@@ -61,10 +61,11 @@ export default function Home() {
           monthlyMap[month] = { confirmed: 0, forecast: 0 };
         }
         
+        const projectAmount = Number(p.amount || 0);
         if (p.status === '完了') {
-          monthlyMap[month].confirmed += (p.amount || 0);
+          monthlyMap[month].confirmed += projectAmount;
         } else if (p.status === '受注' || p.status === '制作' || p.status === '商談') {
-          monthlyMap[month].forecast += (p.amount || 0);
+          monthlyMap[month].forecast += projectAmount;
         }
       });
 
@@ -166,7 +167,6 @@ export default function Home() {
 
   if (loading) return <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '80vh', fontSize: '1.2rem', color: 'var(--primary)' }}>Analyzing System Data...</div>;
 
-  // 確定と見込みの最大値をもとにグラフの高さを合わせる
   const maxSale = Math.max(...salesByMonth.map(s => Math.max(s.confirmed, s.forecast)), 1);
 
   return (
@@ -183,7 +183,7 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main Stats Row - 確定と見込みを並列化 */}
+      {/* Main Stats Row */}
       <div className="grid-responsive" style={{ gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: '3rem', gap: '1rem' }}>
         <div className="glass-panel" style={{ borderTop: '4px solid var(--primary)' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>累計成約額（確定）</p>
@@ -191,6 +191,7 @@ export default function Home() {
         </div>
         <div className="glass-panel" style={{ borderTop: '4px solid #a855f7' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>進行中の見込み総額</p>
+          {/* 【修正】万単位の表記を保つため、正しく1万で割り算してからトータルを表示 */}
           <h2 style={{ fontSize: '1.6rem' }}>¥{(stats.totalForecast / 10000).toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>万</span></h2>
         </div>
         <div className="glass-panel" style={{ borderTop: '4px solid var(--accent)' }}>
@@ -208,7 +209,7 @@ export default function Home() {
       </div>
 
       <div className="grid-responsive" style={{ gridTemplateColumns: '2fr 1fr', marginBottom: '2rem' }}>
-        {/* Sales visualization - 2本棒グラフ化 */}
+        {/* Sales visualization */}
         <div className="glass-panel">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
             <h3>売上推移（直近6ヶ月）</h3>
@@ -236,7 +237,7 @@ export default function Home() {
                   }}>
                     {s.confirmed > 0 && (
                       <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.7rem', fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
-                        ¥{(s.confirmed / 10000).toFixed(0)}万
+                        ¥{(s.confirmed / 10000).toFixed(1)}万
                       </div>
                     )}
                   </div>
@@ -251,7 +252,7 @@ export default function Home() {
                   }}>
                     {s.forecast > 0 && (
                       <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.7rem', fontWeight: 700, color: '#a855f7', whiteSpace: 'nowrap' }}>
-                        ¥{(s.forecast / 10000).toFixed(0)}万
+                        ¥{(s.forecast / 10000).toFixed(1)}万
                       </div>
                     )}
                   </div>
