@@ -12,9 +12,9 @@ interface Alert {
 }
 
 export default function Home() {
-  const [stats, setStats] = useState({ projects: 0, customers: 0, employees: 0, totalRevenue: 0 });
+  const [stats, setStats] = useState({ projects: 0, customers: 0, employees: 0, totalRevenue: 0, totalForecast: 0 });
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [salesByMonth, setSalesByMonth] = useState<{ month: string, amount: number }[]>([]);
+  const [salesByMonth, setSalesByMonth] = useState<{ month: string, confirmed: number, forecast: number }[]>([]);
   const [statusCounts, setStatusCounts] = useState<{ status: string, count: number }[]>([]);
   const [funnel, setFunnel] = useState({ tele: 0, negotiation: 0, order: 0 });
   const [repWorkload, setRepWorkload] = useState<{ name: string, count: number }[]>([]);
@@ -36,38 +36,56 @@ export default function Home() {
       const customers = await cRes.json();
       const employees = await eRes.json();
 
-      // 【計算修正】累計成約額は、すべての工程が無事に終わった「完了」ステータスの案件のみを集計
+      // 【計算ロジック変更】完了＝確定売上、それ以外の進行中＝見込み売上
       const totalRev = projects
         .filter((p: any) => p.status === '完了')
+        .reduce((acc: number, p: any) => acc + (p.amount || 0), 0);
+
+      const totalFore = projects
+        .filter((p: any) => p.status === '受注' || p.status === '制作' || p.status === '商談')
         .reduce((acc: number, p: any) => acc + (p.amount || 0), 0);
 
       setStats({
         projects: projects.length,
         customers: customers.length,
         employees: employees.length,
-        totalRevenue: totalRev
+        totalRevenue: totalRev,
+        totalForecast: totalFore
       });
 
-      // 【計算修正】月別売上推移も、ダッシュボードの累計額と合わせるため「完了」ステータスの案件のみを集計
-      const salesMap: Record<string, number> = {};
+      // 【グラフ用集計】月ごとに「確定」と「見込み」をそれぞれ合算
+      const monthlyMap: Record<string, { confirmed: number, forecast: number }> = {};
       projects.forEach((p: any) => {
+        const month = p.order_date.substring(0, 7);
+        if (!monthlyMap[month]) {
+          monthlyMap[month] = { confirmed: 0, forecast: 0 };
+        }
+        
         if (p.status === '完了') {
-          const month = p.order_date.substring(0, 7);
-          salesMap[month] = (salesMap[month] || 0) + (p.amount || 0);
+          monthlyMap[month].confirmed += (p.amount || 0);
+        } else if (p.status === '受注' || p.status === '制作' || p.status === '商談') {
+          monthlyMap[month].forecast += (p.amount || 0);
         }
       });
-      setSalesByMonth(Object.entries(salesMap).sort().map(([month, amount]) => ({ month, amount })).slice(-6));
+
+      const sortedMonths = Object.entries(monthlyMap)
+        .sort()
+        .map(([month, data]) => ({
+          month,
+          confirmed: data.confirmed,
+          forecast: data.forecast
+        }))
+        .slice(-6);
+
+      setSalesByMonth(sortedMonths);
 
       // Status Counts
       const sMap: Record<string, number> = {};
       const funnelData = { tele: 0, negotiation: 0, order: 0 };
       
       projects.forEach((p: any) => {
-        // Status counts for pie/bar chart
         sMap[p.status] = (sMap[p.status] || 0) + 1;
-        
-        // Funnel counts based on reached milestones
-        funnelData.tele++; // Total entry
+        funnelData.tele++;
         if (p.status_negotiation_at) funnelData.negotiation++;
         if (p.status_order_at) funnelData.order++;
       });
@@ -75,10 +93,9 @@ export default function Home() {
       setStatusCounts(Object.entries(sMap).map(([status, count]) => ({ status, count })));
       setFunnel(funnelData);
 
-      // Workload Aggregation (Both Sales and Production)
+      // Workload Aggregation
       const wMap: Record<string, number> = {};
       projects.forEach((p: any) => {
-        // Only count ongoing/active projects (not Completed or Lost)
         if (p.status !== '完了' && p.status !== '失注') {
           if (p.sales_rep_name) wMap[p.sales_rep_name] = (wMap[p.sales_rep_name] || 0) + 1;
           if (p.production_rep_name) wMap[p.production_rep_name] = (wMap[p.production_rep_name] || 0) + 1;
@@ -117,14 +134,15 @@ export default function Home() {
 
   const handleExportDashboard = () => {
     let csvContent = '項目,値\n';
-    csvContent += `累計成約額,¥${stats.totalRevenue.toLocaleString()}\n`;
+    csvContent += `累計成約額(確定),¥${stats.totalRevenue.toLocaleString()}\n`;
+    csvContent += `見込み合計額,¥${stats.totalForecast.toLocaleString()}\n`;
     csvContent += `稼働中案件数,${stats.projects}\n`;
     csvContent += `登録顧客数,${stats.customers}\n`;
     csvContent += `アラート数,${alerts.length}\n\n`;
     
-    csvContent += '月別売上推移,金額\n';
+    csvContent += '月別売上推移,確定金額,見込み金額\n';
     salesByMonth.forEach(s => {
-      csvContent += `${s.month},${s.amount}\n`;
+      csvContent += `${s.month},${s.confirmed},${s.forecast}\n`;
     });
     
     csvContent += '\n案件ステータス分布,件数\n';
@@ -148,7 +166,8 @@ export default function Home() {
 
   if (loading) return <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '80vh', fontSize: '1.2rem', color: 'var(--primary)' }}>Analyzing System Data...</div>;
 
-  const maxSale = Math.max(...salesByMonth.map(s => s.amount), 1);
+  // 確定と見込みの最大値をもとにグラフの高さを合わせる
+  const maxSale = Math.max(...salesByMonth.map(s => Math.max(s.confirmed, s.forecast)), 1);
 
   return (
     <div className="container">
@@ -164,54 +183,84 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main Stats Row */}
-      <div className="grid-responsive" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: '3rem' }}>
+      {/* Main Stats Row - 確定と見込みを並列化 */}
+      <div className="grid-responsive" style={{ gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: '3rem', gap: '1rem' }}>
         <div className="glass-panel" style={{ borderTop: '4px solid var(--primary)' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>累計成約額（確定）</p>
-          <h2 style={{ fontSize: '2rem' }}>¥{(stats.totalRevenue / 10000).toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>万</span></h2>
+          <h2 style={{ fontSize: '1.6rem' }}>¥{(stats.totalRevenue / 10000).toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>万</span></h2>
+        </div>
+        <div className="glass-panel" style={{ borderTop: '4px solid #a855f7' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>進行中の見込み総額</p>
+          <h2 style={{ fontSize: '1.6rem' }}>¥{(stats.totalForecast / 10000).toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>万</span></h2>
         </div>
         <div className="glass-panel" style={{ borderTop: '4px solid var(--accent)' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>すべての登録案件数</p>
-          <h2 style={{ fontSize: '2rem' }}>{stats.projects} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>件</span></h2>
+          <h2 style={{ fontSize: '1.6rem' }}>{stats.projects} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>件</span></h2>
         </div>
         <div className="glass-panel" style={{ borderTop: '4px solid #ec4899' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>顧客数</p>
-          <h2 style={{ fontSize: '2rem' }}>{stats.customers} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>社</span></h2>
+          <h2 style={{ fontSize: '1.6rem' }}>{stats.customers} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>社</span></h2>
         </div>
         <div className="glass-panel" style={{ borderTop: '4px solid #f59e0b' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>アラート</p>
-          <h2 style={{ fontSize: '2rem', color: alerts.length > 0 ? 'var(--danger)' : 'var(--text)' }}>{alerts.length} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>件</span></h2>
+          <h2 style={{ fontSize: '1.6rem', color: alerts.length > 0 ? 'var(--danger)' : 'var(--text)' }}>{alerts.length} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>件</span></h2>
         </div>
       </div>
 
       <div className="grid-responsive" style={{ gridTemplateColumns: '2fr 1fr', marginBottom: '2rem' }}>
-        {/* Sales visualization */}
+        {/* Sales visualization - 2本棒グラフ化 */}
         <div className="glass-panel">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
             <h3>売上推移（直近6ヶ月）</h3>
-            {/* ラベルを実態に合わせて「確定ベース」に変更 */}
-            <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>確定ベース</span>
+            <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <span style={{ display: 'inline-block', width: '12px', height: '12px', background: 'var(--primary)', borderRadius: '3px' }}></span> 確定分
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <span style={{ display: 'inline-block', width: '12px', height: '12px', background: '#a855f7', borderRadius: '3px' }}></span> 見込み分
+              </span>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1.5rem', height: '250px', paddingBottom: '30px', paddingTop: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem', height: '260px', paddingBottom: '30px', paddingTop: '30px' }}>
             {salesByMonth.map((s, i) => (
               <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
-                <div style={{ 
-                  width: '100%', 
-                  height: `${(s.amount / maxSale) * 100}%`, 
-                  background: 'linear-gradient(to top, var(--primary), var(--accent))',
-                  borderRadius: '6px',
-                  position: 'relative',
-                  boxShadow: '0 0 20px rgba(59, 130, 246, 0.2)'
-                }}>
-                  <div style={{ position: 'absolute', top: '-25px', width: '100%', textAlign: 'center', fontSize: '0.8rem', fontWeight: 700, color: 'var(--primary)' }}>
-                    ¥{(s.amount / 10000).toFixed(0)}万
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', width: '100%', height: '100%', justifyContent: 'center' }}>
+                  {/* 確定バー */}
+                  <div style={{ 
+                    width: '40%', 
+                    height: `${(s.confirmed / maxSale) * 100}%`, 
+                    background: 'linear-gradient(to top, var(--primary), var(--accent))',
+                    borderRadius: '4px 4px 0 0',
+                    position: 'relative',
+                    boxShadow: '0 0 10px rgba(59, 130, 246, 0.1)'
+                  }}>
+                    {s.confirmed > 0 && (
+                      <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.7rem', fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
+                        ¥{(s.confirmed / 10000).toFixed(0)}万
+                      </div>
+                    )}
+                  </div>
+                  {/* 見込みバー */}
+                  <div style={{ 
+                    width: '40%', 
+                    height: `${(s.forecast / maxSale) * 100}%`, 
+                    background: 'linear-gradient(to top, #a855f7, #c084fc)',
+                    borderRadius: '4px 4px 0 0',
+                    position: 'relative',
+                    boxShadow: '0 0 10px rgba(168, 85, 247, 0.1)'
+                  }}>
+                    {s.forecast > 0 && (
+                      <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.7rem', fontWeight: 700, color: '#a855f7', whiteSpace: 'nowrap' }}>
+                        ¥{(s.forecast / 10000).toFixed(0)}万
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div style={{ marginTop: '1rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-muted)' }}>{s.month.split('-')[1]}月</div>
               </div>
             ))}
             {salesByMonth.length === 0 && (
-              <div style={{ width: '100%', textAlign: 'center', color: 'var(--text-muted)', paddingBottom: '50px' }}>完了済みの売上データがまだありません</div>
+              <div style={{ width: '100%', textAlign: 'center', color: 'var(--text-muted)', paddingBottom: '50px' }}>表示する売上データがまだありません</div>
             )}
           </div>
         </div>
