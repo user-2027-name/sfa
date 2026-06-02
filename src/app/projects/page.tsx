@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Papa from 'papaparse';
+import { toast } from 'react-hot-toast'; // 👈 トースト通知用のインポートを追加
 
 interface Employee {
   id: number;
@@ -57,6 +58,10 @@ export default function ProjectsPage() {
   const [productionWebhook, setProductionWebhook] = useState('');
   const [notes, setNotes] = useState('');
 
+  // 👈 【新設】連打防止用のローディング管理状態
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+
   const [activeTab, setActiveTab] = useState<'すべて' | '単発' | '月定額' | '年間契約'>('すべて');
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [editForm, setEditForm] = useState<Partial<Project>>({});
@@ -87,6 +92,8 @@ export default function ProjectsPage() {
       return;
     }
 
+    setIsSubmitting(true); // 👈 登録処理開始（ボタンロック）
+
     const payload = {
       name,
       customer_id: Number(customerId),
@@ -110,6 +117,7 @@ export default function ProjectsPage() {
         body: JSON.stringify(payload)
       });
       if (res.ok) {
+        toast.success('新しい案件をスピーディに構築しました！', { position: 'top-center' }); // 👈 トースト通知発火
         setName('');
         setCustomerId('');
         setContractType('単発');
@@ -123,10 +131,15 @@ export default function ProjectsPage() {
         setSalesWebhook('');
         setProductionWebhook('');
         setNotes('');
-        fetchData();
+        await fetchData();
+      } else {
+        toast.error('案件の登録に失敗しました', { position: 'top-center' });
       }
     } catch (err) {
       console.error(err);
+      toast.error('通信エラーが発生しました', { position: 'top-center' });
+    } finally {
+      setIsSubmitting(false); // 👈 処理終了（ボタンロック解除）
     }
   };
 
@@ -139,25 +152,30 @@ export default function ProjectsPage() {
     e.preventDefault();
     if (!editingProject) return;
 
+    setIsUpdating(true); // 👈 更新処理開始（ボタンロック）
+
     try {
-      // 👈 【大修正】API仕様(PATCH)に完全準拠。リクエストのBodyに案件ID（id）を明確にパッキングして送信
       const res = await fetch('/api/projects', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...editForm,
-          id: editingProject.id // 👈 これが欠損していたため400番・500番エラーになっていました
+          id: editingProject.id
         })
       });
       if (res.ok) {
+        toast.success('案件情報を正常に再構成しました', { position: 'top-center' }); // 👈 トースト通知発火
         setEditingProject(null);
-        fetchData();
+        await fetchData();
       } else {
         const errorData = await res.json();
-        alert(`更新に失敗しました: ${errorData.details || 'サーバーエラー'}`);
+        toast.error(`更新失敗: ${errorData.details || 'サーバーエラー'}`, { position: 'top-center' });
       }
     } catch (err) {
       console.error(err);
+      toast.error('通信エラーが発生しました', { position: 'top-center' });
+    } finally {
+      setIsUpdating(false); // 👈 処理終了（ボタンロック解除）
     }
   };
 
@@ -165,9 +183,15 @@ export default function ProjectsPage() {
     if (!confirm('この案件を削除してもよろしいですか？')) return;
     try {
       const res = await fetch(`/api/projects?id=${id}`, { method: 'DELETE' });
-      if (res.ok) fetchData();
+      if (res.ok) {
+        toast.success('案件を完全に消去しました', { position: 'top-center' });
+        fetchData();
+      } else {
+        toast.error('削除に失敗しました', { position: 'top-center' });
+      }
     } catch (err) {
       console.error(err);
+      toast.error('通信エラーが発生しました', { position: 'top-center' });
     }
   };
 
@@ -206,7 +230,7 @@ export default function ProjectsPage() {
             console.error(err);
           }
         }
-        alert(`${successCount} 件の案件をCSVインポートしました。`);
+        toast.success(`${successCount} 件の案件をインポートしました`, { position: 'top-center' });
         fetchData();
       }
     });
@@ -321,8 +345,14 @@ export default function ProjectsPage() {
             <textarea className="input" style={{ height: '80px', paddingTop: '0.5rem' }} placeholder="案件に関する特記事項や詳細など" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
 
-          <button type="submit" className="btn btn-primary" style={{ marginTop: '0.5rem', alignSelf: 'flex-start', padding: '0.75rem 2rem' }}>
-            ➕ この内容で案件を新規構築
+          {/* 👈 【修正】処理中のローディング制御、disabled、スタイル変更の適用 */}
+          <button 
+            type="submit" 
+            className="btn btn-primary" 
+            style={{ marginTop: '0.5rem', alignSelf: 'flex-start', padding: '0.75rem 2rem', opacity: isSubmitting ? 0.6 : 1, cursor: isSubmitting ? 'not-allowed' : 'pointer' }}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? '⏳ 登録処理中...' : '➕ この内容で案件を新規構築'}
           </button>
         </form>
       </div>
@@ -499,8 +529,16 @@ export default function ProjectsPage() {
               </div>
               
               <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>保存する</button>
-                <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setEditingProject(null)}>キャンセル</button>
+                {/* 👈 【修正】編集用モーダルの保存ボタンもローディング制御に対応 */}
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  style={{ flex: 1, opacity: isUpdating ? 0.6 : 1, cursor: isUpdating ? 'not-allowed' : 'pointer' }}
+                  disabled={isUpdating}
+                >
+                  {isUpdating ? '⏳ 更新中...' : '保存する'}
+                </button>
+                <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setEditingProject(null)} disabled={isUpdating}>キャンセル</button>
               </div>
             </form>
           </div>
