@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Papa from 'papaparse';
-import { toast } from 'react-hot-toast'; // 👈 共通トースト用ライブラリ
 
 interface Employee {
   id: number;
@@ -32,6 +31,9 @@ interface Project {
   customer_name?: string;
   created_at?: string;
   discussion_date?: string;
+  sales_webhook?: string;
+  production_webhook?: string;
+  notes?: string;
 }
 
 export default function ProjectsPage() {
@@ -43,655 +45,396 @@ export default function ProjectsPage() {
   // Form states
   const [name, setName] = useState('');
   const [customerId, setCustomerId] = useState('');
-  const [contractType, setContractType] = useState('単発');
-  const [status, setStatus] = useState('商談');
+  const [contractType, setContractType] = useState('単発'); // デフォルト値
+  const [status, setStatus] = useState('テレアポ');
   const [amount, setAmount] = useState<number | ''>('');
-  const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
+  const [orderDate, setOrderDate] = useState('');
   const [deadline, setDeadline] = useState('');
-  const [discussionDate, setDiscussionDate] = useState('');
   const [salesRepId, setSalesRepId] = useState('');
   const [productionRepId, setProductionRepId] = useState('');
-  const [notifyExternal, setNotifyExternal] = useState(false);
+  const [discussionDate, setDiscussionDate] = useState('');
   const [salesWebhook, setSalesWebhook] = useState('');
   const [productionWebhook, setProductionWebhook] = useState('');
   const [notes, setNotes] = useState('');
-  const [templateId, setTemplateId] = useState('standard');
-  const [sharedDriveUrl, setSharedDriveUrl] = useState('');
-  const [globalWebhookUrl, setGlobalWebhookUrl] = useState('');
 
-  // Search & Filter state
-  const [searchKeyword, setSearchKeyword] = useState('');
-  const [filterSalesRep, setFilterSalesRep] = useState('');
-
-  // Autocomplete states
-  const [customerSearch, setCustomerSearch] = useState('');
-  const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
-
-  // Edit Modal states
-  const [editingProject, setEditingProject] = useState<any | null>(null);
-  const [editForm, setEditForm] = useState<any>(null);
-
-  const getCalendarUrl = (title: string, date: string, details: string = '', invitees: string[] = []) => {
-    if (!date) return '#';
-    const formattedDate = date.replace(/-/g, '');
-    const end = new Date(date);
-    end.setDate(end.getDate() + 1);
-    const formattedEnd = end.toISOString().split('T')[0].replace(/-/g, '');
-    const validEmails = invitees.filter(email => email && email.includes('@'));
-    const addParam = validEmails.length > 0 ? `&add=${validEmails.join(',')}` : '';
-    const baseUrl = 'https://www.google.com/calendar/render?action=TEMPLATE';
-    return `${baseUrl}&text=${encodeURIComponent(title)}&dates=${formattedDate}/${formattedEnd}&details=${encodeURIComponent(details)}${addParam}&sf=true&output=xml`;
-  };
+  // 👈 【変更】年間契約の一覧表示に対応するため、初期選択を「すべて」または「単発」に
+  const [activeTab, setActiveTab] = useState<'すべて' | '単発' | '月定額' | '年間契約'>('すべて');
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [editForm, setEditForm] = useState<Partial<Project>>({});
 
   useEffect(() => {
-    fetchProjects();
-    fetchEmployees();
-    fetchCustomers();
-    fetchSettings();
+    fetchData();
   }, []);
 
-  const fetchSettings = async () => {
-    const res = await fetch('/api/settings');
-    const data = await res.json();
-    if (data.default_shared_drive_url) {
-      setSharedDriveUrl(data.default_shared_drive_url);
+  const fetchData = async () => {
+    try {
+      const [pRes, eRes, cRes] = await Promise.all([
+        fetch('/api/projects'),
+        fetch('/api/employees'),
+        fetch('/api/customers')
+      ]);
+      setProjects(await pRes.json());
+      setEmployees(await eRes.json());
+      setCustomers(await cRes.json());
+    } catch (err) {
+      console.error(err);
     }
-    if (data.shared_webhook_url) {
-      setGlobalWebhookUrl(data.shared_webhook_url);
-    }
-  };
-
-  const fetchProjects = async () => {
-    const res = await fetch('/api/projects');
-    const data = await res.json();
-    setProjects(data);
-  };
-
-  const fetchEmployees = async () => {
-    const res = await fetch('/api/employees');
-    const data = await res.json();
-    setEmployees(data);
-  };
-
-  const fetchCustomers = async () => {
-    const res = await fetch('/api/customers');
-    const data = await res.json();
-    setCustomers(data);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch('/api/projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        customer_id: customerId || null,
-        contract_type: contractType,
-        status,
-        amount: amount === '' ? 0 : amount,
-        order_date: orderDate,
-        deadline,
-        sales_rep_id: salesRepId || null,
-        production_rep_id: productionRepId || null,
-        notify_external: notifyExternal,
-        sales_webhook: salesWebhook,
-        production_webhook: productionWebhook,
-        notes,
-        template_id: templateId,
-        shared_drive_url: sharedDriveUrl,
-        discussion_date: discussionDate
-      }),
-    });
-    if (res.ok) {
-      // 👈 表示位置を真ん中にするため、第2引数で position を top-center に指定
-      toast.success('案件を新しく登録しました！', { position: 'top-center' });
-      setName('');
-      setCustomerId('');
-      setCustomerSearch('');
-      setContractType('単発');
-      setAmount('');
-      setDeadline('');
-      setDiscussionDate('');
-      setTemplateId('standard');
-      setSalesWebhook('');
-      setProductionWebhook('');
-      setNotes('');
-      setSharedDriveUrl('');
-      fetchSettings();
-      fetchProjects();
-    } else {
-      toast.error('案件の登録に失敗しました', { position: 'top-center' });
+    if (!name || !customerId) {
+      alert('案件名と顧客の選択は必須です。');
+      return;
+    }
+
+    const payload = {
+      name,
+      customer_id: Number(customerId),
+      contract_type: contractType,
+      status,
+      amount: amount === '' ? 0 : Number(amount),
+      order_date: orderDate || new Date().toISOString().split('T')[0],
+      deadline: deadline || new Date().toISOString().split('T')[0],
+      sales_rep_id: salesRepId ? Number(salesRepId) : null,
+      production_rep_id: productionRepId ? Number(productionRepId) : null,
+      discussion_date: discussionDate || null,
+      sales_webhook: salesWebhook || null,
+      production_webhook: productionWebhook || null,
+      notes: notes || null
+    };
+
+    try {
+      const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        setName('');
+        setCustomerId('');
+        setContractType('単発');
+        setStatus('テレアポ');
+        setAmount('');
+        setOrderDate('');
+        setDeadline('');
+        setSalesRepId('');
+        setProductionRepId('');
+        setDiscussionDate('');
+        setSalesWebhook('');
+        setProductionWebhook('');
+        setNotes('');
+        fetchData();
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  const handleExport = () => {
-    const csv = Papa.unparse(projects);
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', `projects_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async (results) => {
-        const res = await fetch('/api/projects/import', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(results.data),
-        });
-        if (res.ok) {
-          toast.success('インポートに成功しました！', { position: 'top-center' });
-          fetchProjects();
-        } else {
-          toast.error('インポートに失敗しました', { position: 'top-center' });
-        }
-      }
-    });
-  };
-
-  const startEdit = (project: any) => {
+  const handleEditClick = (project: Project) => {
     setEditingProject(project);
-    setEditForm({ 
-      ...project,
-      id: project.id 
-    });
+    setEditForm({ ...project });
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editForm || !editForm.id) {
-      toast.error('エラー: 更新対象の案件IDが見つかりません', { position: 'top-center' });
-      return;
-    }
+    if (!editingProject) return;
 
-    if (editForm.status === '完了' && editingProject?.status !== '完了') {
-      const tRes = await fetch(`/api/tasks?projectId=${encodeURIComponent(editForm.id)}`);
-      const tasks = await tRes.json();
-      const unfinished = tasks.filter((t: any) => t.status !== '完了');
-      if (unfinished.length > 0) {
-        toast('未完了のタスクが残っています。', { icon: 'ℹ️', position: 'top-center' });
+    try {
+      const res = await fetch(`/api/projects?id=${editingProject.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm)
+      });
+      if (res.ok) {
+        setEditingProject(null);
+        fetchData();
       }
+    } catch (err) {
+      console.error(err);
     }
+  };
 
-    const res = await fetch('/api/projects', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editForm),
+  const handleDelete = async (id: string) => {
+    if (!confirm('この案件を削除してもよろしいですか？')) return;
+    try {
+      const res = await fetch(`/api/projects?id=${id}`, { method: 'DELETE' });
+      if (res.ok) fetchData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleCSVImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+     Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        let successCount = 0;
+        for (const row of results.data as any[]) {
+          const payload = {
+            name: row['案件名'],
+            customer_id: Number(row['顧客ID']),
+            contract_type: row['契約種別'] || '単発',
+            status: row['ステータス'] || 'テレアポ',
+            amount: Number(row['金額'] || 0),
+            order_date: row['受注日'] || new Date().toISOString().split('T')[0],
+            deadline: row['納期'] || new Date().toISOString().split('T')[0],
+            sales_rep_id: row['営業担当ID'] ? Number(row['営業担当ID']) : null,
+            production_rep_id: row['制作担当ID'] ? Number(row['制作担当ID']) : null,
+            discussion_date: row['商談日時'] || null,
+            notes: row['備考'] || null
+          };
+
+          try {
+            const res = await fetch('/api/projects', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            if (res.ok) successCount++;
+          } catch (err) {
+            console.error(err);
+          }
+        }
+        alert(`${successCount} 件の案件をCSVインポートしました。`);
+        fetchData();
+      }
     });
-
-    if (res.ok) {
-      toast.success('案件情報を更新しました', { position: 'top-center' });
-      setEditingProject(null);
-      fetchProjects();
-    } else {
-      const errorData = await res.json();
-      toast.error(`更新に失敗しました: ${errorData.details || '不明なエラー'}`, { position: 'top-center' });
-    }
   };
 
-  const handleSalesRepChange = (id: string) => {
-    setSalesRepId(id);
-    const emp = employees.find(e => e.id.toString() === id);
-    if (emp?.notification_webhook) {
-      setNotifyExternal(true);
-      setSalesWebhook(emp.notification_webhook);
-    }
-  };
-
-  const handleProductionRepChange = (id: string) => {
-    setProductionRepId(id);
-    const emp = employees.find(e => e.id.toString() === id);
-    if (emp?.notification_webhook) {
-      setNotifyExternal(true);
-      setProductionWebhook(emp.notification_webhook);
-    }
-  };
-
-  // 👈 削除ボタンを押した時だけ、確認用のポップアップ（confirm）が出るように完全復活
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`案件「${name}」を削除しますか？\n付随するタスク工程もすべて削除されます。`)) return;
-
-    const res = await fetch(`/api/projects?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
-    if (res.ok) {
-      toast.success(`案件「${name}」を削除しました`, { position: 'top-center' });
-      fetchProjects();
-    } else {
-      const errorData = await res.json();
-      toast.error(`削除に失敗しました: ${errorData.details || '不明なエラー'}`, { position: 'top-center' });
-    }
-  };
-
+  // 👈 【変更】タブによるフィルタリングに「年間契約」を反映
   const filteredProjects = projects.filter(p => {
-    const matchesKeyword = p.name.toLowerCase().includes(searchKeyword.toLowerCase()) || 
-                          (p.customer_name || '').toLowerCase().includes(searchKeyword.toLowerCase());
-    const matchesSales = !filterSalesRep || p.sales_rep_id === Number(filterSalesRep);
-    return matchesKeyword && matchesSales;
+    if (activeTab === 'すべて') return true;
+    return p.contract_type === activeTab;
   });
 
-  const teleAppointmentProjects = filteredProjects.filter(p => p.status === 'テレアポ');
-  const negotiationProjects = filteredProjects.filter(p => p.status === '商談');
-  const contractedProjects = filteredProjects.filter(p => p.status === '受注');
-  const productionProjects = filteredProjects.filter(p => p.status === '制作');
-  const completedProjects = filteredProjects.filter(p => p.status === '完了' || p.status === '失注');
-
-  const ProjectTable = ({ data, title, showGlobalActions = false }: { data: any[], title: string, showGlobalActions?: boolean }) => (
-    <div className="glass-panel" style={{ marginBottom: '2rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: 0 }}>
-          <span style={{ width: '8px', height: '1.5rem', background: title.includes('進行') ? 'var(--primary)' : 'var(--text-muted)', borderRadius: '4px' }}></span>
-          {title} ({data.length})
-        </h3>
-        {showGlobalActions && (
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className="btn btn-secondary" onClick={handleExport} style={{ fontSize: '0.8rem' }}>CSV出力</button>
-            <label className="btn btn-secondary" style={{ fontSize: '0.8rem', cursor: 'pointer' }}>
-              CSV取込
-              <input type="file" accept=".csv" style={{ display: 'none' }} onChange={handleImport} />
-            </label>
-          </div>
-        )}
-      </div>
-      <div className="table-wrapper">
-        <table className="data-table">
-        <thead>
-          <tr>
-            <th style={{ width: '130px' }}>案件ID</th>
-            <th>発注元 / 案件名</th>
-            <th>見積額（税込）</th>
-            <th>日程（受/期/談）</th>
-            <th>登録日</th>
-            <th>担当者</th>
-            <th>ステータス</th>
-            <th style={{ width: '120px' }}>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((project) => (
-              <tr key={project.id} className="table-row">
-                <td style={{ fontWeight: 600 }}>
-                  <Link href={`/projects/${project.id}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>
-                    {project.id}
-                  </Link>
-                  {project.status !== '完了' && project.status !== '失注' && (
-                    (() => {
-                      const today = new Date().toISOString().split('T')[0];
-                      const isRisk = project.deadline && project.deadline <= today;
-                      if (isRisk) return <span style={{ marginLeft: '0.5rem', padding: '0.1rem 0.4rem', background: 'var(--danger)', color: 'white', fontSize: '0.65rem', borderRadius: '4px', fontWeight: 800 }}>納期遅延</span>;
-                      
-                      const threeDaysLater = new Date();
-                      threeDaysLater.setDate(threeDaysLater.getDate() + 3);
-                      const riskDate = threeDaysLater.toISOString().split('T')[0];
-                      if (project.deadline && project.deadline <= riskDate) return <span style={{ marginLeft: '0.5rem', padding: '0.1rem 0.4rem', background: '#f59e0b', color: 'white', fontSize: '0.65rem', borderRadius: '4px', fontWeight: 800 }}>遅延リスク</span>;
-                      
-                      return null;
-                    })()
-                  )}
-                </td>
-              <td>
-                <Link href={`/customers/${project.customer_id}`} style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textDecoration: 'none' }}>
-                  {project.customer_name || '未設定'}
-                </Link>
-                <div style={{ fontWeight: 600 }}>{project.name}</div>
-              </td>
-              <td style={{ fontSize: '0.9rem' }}>{project.amount !== '' ? `¥${Number(project.amount).toLocaleString()}` : '-'}</td>
-              <td style={{ fontSize: '0.8rem' }}>
-                <div>受: {project.order_date}</div>
-                <div style={{ color: 'var(--text-muted)' }}>期: {project.deadline || '-'}</div>
-                {project.discussion_date && <div style={{ color: 'var(--primary)' }}>談: {project.discussion_date}</div>}
-              </td>
-              <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                {project.created_at ? project.created_at.split(' ')[0] : '-'}
-              </td>
-              <td style={{ fontSize: '0.8rem' }}>
-                <div title="営業">営: {project.sales_rep_name || '-'}</div>
-                <div title="制作" style={{ color: 'var(--text-muted)' }}>制: {project.production_rep_name || '-'}</div>
-              </td>
-              <td>
-                <span style={{ 
-                  padding: '0.25rem 0.6rem', 
-                  borderRadius: '20px', 
-                  fontSize: '0.7rem',
-                  fontWeight: 600,
-                  background: project.status === '完了' ? 'rgba(16, 185, 129, 0.2)' : 
-                              project.status === '失注' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(59, 130, 246, 0.2)',
-                  color: project.status === '完了' ? '#10b981' : 
-                        project.status === '失注' ? '#ef4444' : '#3b82f6'
-                }}>
-                  {project.status}
-                </span>
-              </td>
-              <td>
-                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                  <button 
-                    className="btn btn-secondary" 
-                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem' }} 
-                    onClick={() => {
-                      const url = getCalendarUrl(`【納期】${project.name}`, project.deadline || '', `案件URL: ${window.location.origin}/projects/${project.id}`, [project.sales_rep_email || '', project.production_rep_email || '']);
-                      window.open(url, 'GoogleCalendar', 'width=800,height=700,menubar=no,toolbar=no,location=no,status=no');
-                    }}
-                  >
-                    📅
-                  </button>
-                  <button 
-                    className="btn btn-secondary" 
-                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.7rem' }} 
-                    onClick={() => startEdit(project)}
-                  >
-                    ✏️ 更新
-                  </button>
-                  <button 
-                    className="btn btn-danger" 
-                    style={{ padding: '0.3rem 0.5rem', fontSize: '0.7rem' }} 
-                    onClick={() => handleDelete(project.id, project.name)}
-                  >
-                    🗑️
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
-          {data.length === 0 && (
-            <tr>
-              <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>対象の案件はありません</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-    </div>
-  );
-
   return (
-    <div className="container" style={{ maxWidth: '1400px' }}>
-      <h1 style={{ marginBottom: '2rem' }}>案件管理システム</h1>
+    <div className="container" style={{ maxWidth: '100%' }}>
+      <header style={{ marginBottom: '3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>案件マスター管理</h1>
+          <p style={{ color: 'var(--text-muted)' }}>新規案件の追加、一覧のフィルタリング、CSVインポートおよび編集を行えます。</p>
+        </div>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <label className="btn btn-secondary" style={{ cursor: 'pointer', margin: 0 }}>
+            📥 CSVインポート
+            <input type="file" accept=".csv" style={{ display: 'none' }} onChange={handleCSVImport} />
+          </label>
+        </div>
+      </header>
 
-      {/* Registration Form */}
-      <div className="glass-panel" style={{ marginBottom: '2rem' }}>
-        <h3 style={{ marginBottom: '1.5rem' }}>新規案件登録（ID自動採番）</h3>
-        <form onSubmit={handleSubmit} className="grid-responsive" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-          <div className="form-group" style={{ gridColumn: 'span 2' }}>
-            <label className="label">案件名</label>
-            <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
+      {/* 新規追加フォーム */}
+      <div className="glass-panel" style={{ marginBottom: '3rem', padding: '2rem' }}>
+        <h3 style={{ marginBottom: '1.5rem' }}>✨ 新規案件を登録</h3>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+            <div className="form-group">
+              <label className="label">案件名 *</label>
+              <input className="input" placeholder="例: Webサイトリニューアル" value={name} onChange={(e) => setName(e.target.value)} required />
+            </div>
+            <div className="form-group">
+              <label className="label">所属顧客 *</label>
+              <select className="input" value={customerId} onChange={(e) => setCustomerId(e.target.value)} required>
+                <option value="">-- 顧客を選択 --</option>
+                {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="label">契約種別</label>
+              <select className="input" value={contractType} onChange={(e) => setContractType(e.target.value)}>
+                <option value="単発">単発案件</option>
+                <option value="月定額">月額定額案件 (リカーリング)</option>
+                <option value="年間契約">年間契約案件</option> {/* 👈 追加 */}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="label">初期ステータス</label>
+              <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="テレアポ">テレアポ</option>
+                <option value="商談">商談</option>
+                <option value="受注">受注</option>
+                <option value="制作">制作</option>
+                <option value="完了">完了</option>
+                <option value="失注">失注</option>
+              </select>
+            </div>
           </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+            <div className="form-group">
+              <label className="label">契約金額 (税別)</label>
+              <input type="number" className="input" placeholder="金額を半角数字で入力" value={amount} onChange={(e) => setAmount(e.target.value === '' ? '' : Number(e.target.value))} />
+            </div>
+            <div className="form-group">
+              <label className="label">営業受注日 (起算日)</label>
+              <input type="date" className="input" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="label">完了・納期期限</label>
+              <input type="date" className="input" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="label">次回商談日時 (任意)</label>
+              <input type="datetime-local" className="input" value={discussionDate} onChange={(e) => setDiscussionDate(e.target.value)} />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+            <div className="form-group">
+              <label className="label">営業担当者</label>
+              <select className="input" value={salesRepId} onChange={(e) => setSalesRepId(e.target.value)}>
+                <option value="">指定なし</option>
+                {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name} ({emp.department})</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="label">制作ディレクター / 担当</label>
+              <select className="input" value={productionRepId} onChange={(e) => setProductionRepId(e.target.value)}>
+                <option value="">指定なし</option>
+                {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name} ({emp.department})</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+            <div className="form-group">
+              <label className="label">営業用通知WebHook URL (独自設定用)</label>
+              <input className="input" placeholder="https://chatwork.com/gateway/..." value={salesWebhook} onChange={(e) => setSalesWebhook(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="label">制作用通知WebHook URL (独自設定用)</label>
+              <input className="input" placeholder="https://hooks.slack.com/services/..." value={productionWebhook} onChange={(e) => setProductionWebhook(e.target.value)} />
+            </div>
+          </div>
+
           <div className="form-group">
-            <label className="label">初期ステータス</label>
-            <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="テレアポ">テレアポ</option>
-              <option value="商談">商談</option>
-              <option value="受注">受注</option>
-              <option value="制作">制作</option>
-              <option value="失注">失注</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="label">契約種別</label>
-            <select className="select" value={contractType} onChange={(e) => setContractType(e.target.value)}>
-              <option value="単発">単発 (S)</option>
-              <option value="月額定額">月額定額 (R)</option>
-            </select>
+            <label className="label">備考欄・引き継ぎメモ</label>
+            <textarea className="input" style={{ height: '80px', paddingTop: '0.5rem' }} placeholder="案件に関する特記事項や詳細など" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
 
-          <div className="form-group" style={{ gridColumn: 'span 2', position: 'relative' }}>
-            <label className="label">発注元顧客</label>
-            <input 
-              className="input" 
-              placeholder="顧客名を入力して検索..." 
-              value={customerSearch} 
-              onChange={(e) => {
-                setCustomerSearch(e.target.value);
-                setShowCustomerSuggestions(true);
-              }}
-              onFocus={() => setShowCustomerSuggestions(true)}
-            />
-            {showCustomerSuggestions && customerSearch && (
-              <div style={{
-                position: 'absolute', top: '100%', left: 0, width: '100%', 
-                background: 'var(--bg-sidebar)', border: '1px solid var(--border)',
-                borderRadius: '8px', zIndex: 10, maxHeight: '200px', overflowY: 'auto',
-                boxShadow: '0 10px 30px rgba(0,0,0,0.2)', backdropFilter: 'blur(10px)'
-              }}>
-                {customers.filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase())).map(c => (
-                  <div 
-                    key={c.id} 
-                    style={{ padding: '0.75rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border)', color: 'var(--text-main)' }}
-                    className="suggestion-item"
-                    onClick={() => {
-                      setCustomerId(c.id.toString());
-                      setCustomerSearch(c.name);
-                      setShowCustomerSuggestions(false);
-                    }}
-                  >
-                    {c.name}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="form-group">
-            <label className="label">工程テンプレート</label>
-            <select className="select" value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
-              <option value="standard">標準（受注・制作・納品）</option>
-              <option value="web">WEB制作（要件・デザ・実装・テスト）</option>
-              <option value="sales">営業・商談（リード・アポ・クロージング）</option>
-              <option value="maintenance">保守・運用（月次点検・報告）</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="label">受注予定日/受注日 📅</label>
-            <input type="date" className="input" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} required />
-          </div>
-
-          <div className="form-group">
-            <label className="label">見積額（税込）</label>
-            <input 
-              type="text" 
-              className="input" 
-              placeholder="0" 
-              value={amount} 
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === '') {
-                  setAmount('');
-                } else {
-                  const sanitized = val.replace(/\D/g, '').replace(/^0+/, '');
-                  setAmount(sanitized === '' ? 0 : Number(sanitized));
-                }
-              }} 
-            />
-          </div>
-          <div className="form-group">
-            <label className="label">納期 📅</label>
-            <input type="date" className="input" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label className="label">商談予定日 📅</label>
-            <input type="date" className="input" value={discussionDate} onChange={(e) => setDiscussionDate(e.target.value)} />
-          </div>
-          <div className="form-group" style={{ visibility: 'hidden' }}></div>
-
-          <div className="form-group" style={{ gridColumn: 'span 2' }}>
-            <label className="label">営業担当者</label>
-            <select className="select" value={salesRepId} onChange={(e) => handleSalesRepChange(e.target.value)}>
-              <option value="">選択してください</option>
-              {employees.filter(e => e.role === '営業' || e.role === '兼務').map(e => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="form-group" style={{ gridColumn: 'span 2' }}>
-            <label className="label">制作担当者</label>
-            <select className="select" value={productionRepId} onChange={(e) => handleProductionRepChange(e.target.value)}>
-              <option value="">選択してください</option>
-              {employees.filter(e => e.role === '制作' || e.role === '兼務').map(e => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group" style={{ gridColumn: 'span 4', display: 'flex', alignItems: 'center', gap: '1rem', paddingTop: '1rem' }}>
-            <input type="checkbox" checked={notifyExternal} onChange={(e) => setNotifyExternal(e.target.checked)} id="notify" />
-            <label htmlFor="notify" style={{ cursor: 'pointer', fontSize: '0.875rem' }}>
-              外部通知（Google Chat等）を有効にする
-              {globalWebhookUrl && <span style={{ color: 'var(--primary)', marginLeft: '1rem' }}>(共通Webhookが設定されています)</span>}
-            </label>
-          </div>
-
-          {notifyExternal && !globalWebhookUrl && (
-            <>
-              <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                <label className="label">営業用通知Webhook URL</label>
-                <input className="input" placeholder="営業担当チャットへ..." value={salesWebhook} onChange={(e) => setSalesWebhook(e.target.value)} />
-              </div>
-              <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                <label className="label">制作用通知Webhook URL</label>
-                <input className="input" placeholder="制作担当チャットへ..." value={productionWebhook} onChange={(e) => setProductionWebhook(e.target.value)} />
-              </div>
-            </>
-          )}
-
-          <div className="form-group" style={{ gridColumn: 'span 4' }}>
-            <label className="label">備考 / メモ</label>
-            <textarea className="input" style={{ height: '80px', paddingTop: '0.5rem' }} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="案件に関する補足事項..." />
-          </div>
-
-          <div className="form-group" style={{ gridColumn: 'span 4' }}>
-            <label className="label">📂 Google 共有ドライブ URL</label>
-            <input className="input" placeholder="https://drive.google.com/..." value={sharedDriveUrl} onChange={(e) => setSharedDriveUrl(e.target.value)} />
-          </div>
-          
-          <div style={{ gridColumn: 'span 4', textAlign: 'right', marginTop: '1.5rem' }}>
-            <button type="submit" className="btn btn-primary" style={{ padding: '0.8rem 2.5rem', fontSize: '1.1rem', display: 'inline-flex', alignItems: 'center', gap: '0.75rem', boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)' }}>
-              <span style={{ fontSize: '1.3rem' }}>🚀</span> 案件を登録する
-            </button>
-          </div>
+          <button type="submit" className="btn btn-primary" style={{ marginTop: '0.5rem', alignSelf: 'flex-start', padding: '0.75rem 2rem' }}>
+            ➕ この内容で案件を新規構築
+          </button>
         </form>
       </div>
 
-      {/* Search & Filter Bar & Global Settings */}
-      <div className="glass-panel" style={{ marginBottom: '2rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '2rem', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <span style={{ fontSize: '1.2rem opacity: 0.5' }}>🔍</span>
-            <input 
-              className="input" 
-              placeholder="プロジェクト名・顧客名で検索..." 
-              value={searchKeyword} 
-              onChange={(e) => setSearchKeyword(e.target.value)} 
-              style={{ border: 'none', background: 'transparent', fontSize: '1rem', padding: '0.5rem 0', width: '100%' }}
-            />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <label className="label" style={{ margin: 0, whiteSpace: 'nowrap' }}>担当営業:</label>
-            <select className="select" style={{ width: '150px' }} value={filterSalesRep} onChange={(e) => setFilterSalesRep(e.target.value)}>
-              <option value="">すべて</option>
-              {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div style={{ borderTop: '1px solid var(--border)', marginTop: '1rem', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
-            <label className="label" style={{ margin: 0, whiteSpace: 'nowrap', fontSize: '0.8rem' }}>📢 共通通知Webhook:</label>
-            <input 
-              className="input" 
-              placeholder="未設定（環境変数またはこちらで設定）" 
-              value={globalWebhookUrl} 
-              onChange={(e) => setGlobalWebhookUrl(e.target.value)} 
-              style={{ fontSize: '0.8rem', height: '32px' }}
-            />
-            <button 
-              className="btn btn-secondary" 
-              style={{ fontSize: '0.7rem', height: '32px', whiteSpace: 'nowrap' }}
-              onClick={async () => {
-                const res = await fetch('/api/settings', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ key: 'shared_webhook_url', value: globalWebhookUrl })
-                });
-                if (res.ok) {
-                  toast.success('共通Webhook設定を保存しました', { position: 'top-center' });
-                  fetchSettings();
-                }
-              }}
-            >
-              設定保存
-            </button>
-          </div>
-          <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: '2rem' }}>
-            ※ここに設定すると、全案件の通知がこのURLに統一されます。
-          </p>
-        </div>
+      {/* タブと一覧 */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', overflowX: 'auto' }}>
+        {(['すべて', '単発', '月定額', '年間契約'] as const).map(tab => (
+          <button 
+            key={tab} 
+            onClick={() => setActiveTab(tab)}
+            style={{
+              padding: '0.6rem 1.2rem',
+              background: activeTab === tab ? 'var(--primary)' : 'transparent',
+              color: activeTab === tab ? '#fff' : 'var(--text-muted)',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.2s'
+            }}
+          >
+            {tab === 'すべて' ? '📁 全案件表示' : tab === '単発' ? '🎯 単発契約一覧' : tab === '月定額' ? '🔄 月定額一覧' : '📆 年間契約一覧'} {/* 👈 表示名の追加 */}
+          </button>
+        ))}
       </div>
 
-      {/* Status-based Sections */}
-      <ProjectTable data={teleAppointmentProjects} title="テレアポ中の案件" showGlobalActions={true} />
-      <ProjectTable data={negotiationProjects} title="商談中の案件" />
-      <ProjectTable data={contractedProjects} title="受注済みの案件" />
-      <ProjectTable data={productionProjects} title="制作中の案件" />
-      <ProjectTable data={completedProjects} title="完了・失注した案件" />
+      <div className="glass-panel" style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '1000px' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              <th style={{ padding: '1rem' }}>案件名</th>
+              <th style={{ padding: '1rem' }}>所属顧客</th>
+              <th style={{ padding: '1rem' }}>契約タイプ</th>
+              <th style={{ padding: '1rem' }}>現ステータス</th>
+              <th style={{ padding: '1rem' }}>金額</th>
+              <th style={{ padding: '1rem' }}>受注起算日</th>
+              <th style={{ padding: '1rem' }}>期限・納期</th>
+              <th style={{ padding: '1rem' }}>営業担当</th>
+              <th style={{ padding: '1rem' }}>制作担当</th>
+              <th style={{ padding: '1rem', textAlign: 'right' }}>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredProjects.map(p => (
+              <tr key={p.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', fontSize: '0.9rem' }} className="table-row-hover">
+                <td style={{ padding: '1rem', fontWeight: 600 }}>
+                  <Link href={`/projects/${p.id}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>{p.name}</Link>
+                </td>
+                <td style={{ padding: '1rem', color: 'var(--text-main)' }}>{p.customer_name || `未設定 (ID: ${p.customer_id})`}</td>
+                <td style={{ padding: '1rem' }}>
+                  <span style={{ 
+                    padding: '0.25rem 0.6rem', 
+                    borderRadius: '6px', 
+                    fontSize: '0.75rem', 
+                    fontWeight: 700,
+                    background: p.contract_type === '月定額' ? 'rgba(168, 85, 247, 0.15)' : p.contract_type === '年間契約' ? 'rgba(236, 72, 153, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                    color: p.contract_type === '月定額' ? '#c084fc' : p.contract_type === '年間契約' ? '#f472b6' : '#60a5fa' 
+                  }}>
+                    {p.contract_type}
+                  </span>
+                </td>
+                <td style={{ padding: '1rem' }}>
+                  <span style={{ 
+                    padding: '0.25rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600,
+                    background: p.status === '完了' ? 'rgba(16, 185, 129, 0.15)' : p.status === '失注' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                    color: p.status === '完了' ? '#34d399' : p.status === '失注' ? '#f87171' : '#fbbf24'
+                  }}>
+                    {p.status}
+                  </span>
+                </td>
+                <td style={{ padding: '1rem', fontWeight: 700 }}>¥{(Number(p.amount || 0)).toLocaleString()}</td>
+                <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{p.order_date}</td>
+                <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{p.deadline}</td>
+                <td style={{ padding: '1rem' }}>{p.sales_rep_name || '未指定'}</td>
+                <td style={{ padding: '1rem' }}>{p.production_rep_name || '未指定'}</td>
+                <td style={{ padding: '1rem', textAlign: 'right' }}>
+                  <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', marginRight: '0.5rem' }} onClick={() => handleEditClick(p)}>編集</button>
+                  <button className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }} onClick={() => handleDelete(p.id)}>削除</button>
+                </td>
+              </tr>
+            ))}
+            {filteredProjects.length === 0 && (
+              <tr>
+                <td colSpan={10} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>該当する案件がありません。</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
-      {/* Edit Modal */}
+      {/* 編集用モーダル */}
       {editingProject && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-          background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1000, backdropFilter: 'blur(4px)'
-        }}>
-          <div className="glass-panel" style={{ width: '90%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 style={{ marginBottom: '1.5rem' }}>
-              案件情報の更新 <span style={{ color: 'var(--primary)', marginLeft: '0.5rem', fontSize: '0.9rem' }}>[ {editForm.id} ]</span>
-            </h3>
-            <form onSubmit={handleUpdate}>
-              <div className="form-group">
-                <label className="label">案件名</label>
-                <input className="input" value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} />
-              </div>
+        <div style={{ position: 'fixed', top:0, left:0, width:'100vw', height:'100vh', background:'rgba(0,0,0,0.6)', display:'flex', alignItems:'center', justifyContent:'center', zIndex: 2000, padding: '1rem' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '700px', padding: '2rem', maxHeight: '90vh', overflowY: 'auto', background: 'var(--bg-dark)', border: '1px solid var(--border)' }}>
+            <h3 style={{ marginBottom: '1.5rem' }}>📝 案件情報を再構成</h3>
+            <form onSubmit={handleUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="form-group" style={{ position: 'relative' }}>
-                  <label className="label">顧客名</label>
-                  <input 
-                    className="input" 
-                    value={editForm.customer_name || ''} 
-                    onChange={(e) => {
-                      setEditForm({...editForm, customer_name: e.target.value});
-                      setShowCustomerSuggestions(true);
-                    }}
-                  />
-                  {showCustomerSuggestions && editForm.customer_name && (
-                    <div style={{
-                      position: 'absolute', top: '100%', left: 0, width: '100%', 
-                      background: 'rgba(30,30,40,0.95)', border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '8px', zIndex: 10, maxHeight: '200px', overflowY: 'auto',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)'
-                    }}>
-                      {customers.filter(c => c.name.toLowerCase().includes(editForm.customer_name.toLowerCase())).map(c => (
-                        <div 
-                          key={c.id} 
-                          style={{ padding: '0.75rem 1rem', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
-                          onClick={() => {
-                            setEditForm({...editForm, customer_id: c.id, customer_name: c.name});
-                            setShowCustomerSuggestions(false);
-                          }}
-                        >
-                          {c.name}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                <div className="form-group">
+                  <label className="label">案件名</label>
+                  <input className="input" value={editForm.name || ''} onChange={(e) => setEditForm({...editForm, name: e.target.value})} required />
                 </div>
                 <div className="form-group">
+                  <label className="label">契約種別</label>
+                  <select className="input" value={editForm.contract_type || '単発'} onChange={(e) => setEditForm({...editForm, contract_type: e.target.value})}>
+                    <option value="単発">単発案件</option>
+                    <option value="月定額">月額定額案件</option>
+                    <option value="年間契約">年間契約案件</option> {/* 👈 追加 */}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
                   <label className="label">ステータス</label>
-                  <select className="select" value={editForm.status} onChange={(e) => setEditForm({...editForm, status: e.target.value})}>
+                  <select className="input" value={editForm.status || '商談'} onChange={(e) => setEditForm({...editForm, status: e.target.value})}>
                     <option value="テレアポ">テレアポ</option>
                     <option value="商談">商談</option>
                     <option value="受注">受注</option>
@@ -700,47 +443,56 @@ export default function ProjectsPage() {
                     <option value="失注">失注</option>
                   </select>
                 </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
-                  <label className="label">見積額（税込）</label>
-                  <input 
-                    type="text" 
-                    className="input" 
-                    placeholder="0"
-                    value={editForm.amount === null || editForm.amount === undefined ? '' : editForm.amount} 
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === '') {
-                        setEditForm({...editForm, amount: ''});
-                      } else {
-                        const sanitized = val.replace(/\D/g, '').replace(/^0+/, '');
-                        setEditForm({...editForm, amount: sanitized === '' ? 0 : Number(sanitized)});
-                      }
-                    }} 
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="label">商談予定日 📅</label>
-                  <input 
-                    type="date" 
-                    className="input" 
-                    value={editForm.discussion_date || ''} 
-                    onChange={(e) => setEditForm({...editForm, discussion_date: e.target.value})} 
-                  />
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="form-group">
-                  <label className="label">受注日</label>
-                  <input type="date" className="input" value={editForm.order_date} onChange={(e) => setEditForm({...editForm, order_date: e.target.value})} />
-                </div>
-                <div className="form-group">
-                  <label className="label">納期</label>
-                  <input type="date" className="input" value={editForm.deadline} onChange={(e) => setEditForm({...editForm, deadline: e.target.value})} />
+                  <label className="label">金額</label>
+                  <input type="number" className="input" value={editForm.amount ?? ''} onChange={(e) => setEditForm({...editForm, amount: e.target.value === '' ? '' : Number(e.target.value)})} />
                 </div>
               </div>
 
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="label">営業受注日</label>
+                  <input type="date" className="input" value={editForm.order_date || ''} onChange={(e) => setEditForm({...editForm, order_date: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="label">期限・納期</label>
+                  <input type="date" className="input" value={editForm.deadline || ''} onChange={(e) => setEditForm({...editForm, deadline: e.target.value})} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="label">営業担当者</label>
+                  <select className="input" value={editForm.sales_rep_id ?? ''} onChange={(e) => setEditForm({...editForm, sales_rep_id: e.target.value ? Number(e.target.value) : null})}>
+                    <option value="">指定なし</option>
+                    {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="label">制作担当者</label>
+                  <select className="input" value={editForm.production_rep_id ?? ''} onChange={(e) => setEditForm({...editForm, production_rep_id: e.target.value ? Number(e.target.value) : null})}>
+                    <option value="">指定なし</option>
+                    {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="label">営業用通知URL</label>
+                  <input className="input" placeholder="営業WebHook..." value={editForm.sales_webhook || ''} onChange={(e) => setEditForm({...editForm, sales_webhook: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="label">制作用通知URL</label>
+                  <input className="input" placeholder="制作WebHook..." value={editForm.production_webhook || ''} onChange={(e) => setEditForm({...editForm, production_webhook: e.target.value})} />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="label">備考 / メモ</label>
+                <textarea className="input" style={{ height: '80px', paddingTop: '0.5rem' }} value={editForm.notes || ''} onChange={(e) => setEditForm({...editForm, notes: e.target.value})} />
+              </div>
+              
               <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
                 <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>保存する</button>
                 <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setEditingProject(null)}>キャンセル</button>
