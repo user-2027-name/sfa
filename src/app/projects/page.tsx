@@ -144,7 +144,7 @@ export default function ProjectsPage() {
       }),
     });
     if (res.ok) {
-      toast.success('案件を新しく登録しました！');
+      toast.success('案件を新しく登録しました！'); // 👈 トースト通知を発火
       setName('');
       setCustomerId('');
       setCustomerSearch('');
@@ -213,13 +213,12 @@ export default function ProjectsPage() {
       return;
     }
 
-    // 👈 「完了」確認時のブラウザconfirmを撤廃し、トースト警告を出して処理を進める形に変更
     if (editForm.status === '完了' && editingProject?.status !== '完了') {
       const tRes = await fetch(`/api/tasks?projectId=${encodeURIComponent(editForm.id)}`);
       const tasks = await tRes.json();
       const unfinished = tasks.filter((t: any) => t.status !== '完了');
       if (unfinished.length > 0) {
-        toast('⚠️ 未完了のタスクが残った状態で完了に更新します。', { icon: 'ℹ️' });
+        toast('未完了のタスクが残っています。', { icon: 'ℹ️' });
       }
     }
 
@@ -257,7 +256,6 @@ export default function ProjectsPage() {
     }
   };
 
-  // 👈 削除時の確認ポップアップも撤廃し、即時実行してトースト通知する形に一本化
   const handleDelete = async (id: string, name: string) => {
     const res = await fetch(`/api/projects?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
     if (res.ok) {
