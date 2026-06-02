@@ -36,7 +36,6 @@ export default function Home() {
       const customers = await cRes.json();
       const employees = await eRes.json();
 
-      // 【バグ修正】Number()で確実に数値型に変換してから足し算を行うように徹底
       const totalRev = projects
         .filter((p: any) => p.status === '完了')
         .reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0);
@@ -53,7 +52,6 @@ export default function Home() {
         totalForecast: totalFore
       });
 
-      // 【バグ修正】月ごとの集計でも、文字結合が起きないようNumber()変換を徹底
       const monthlyMap: Record<string, { confirmed: number, forecast: number }> = {};
       projects.forEach((p: any) => {
         const month = p.order_date.substring(0, 7);
@@ -80,7 +78,6 @@ export default function Home() {
 
       setSalesByMonth(sortedMonths);
 
-      // Status Counts
       const sMap: Record<string, number> = {};
       const funnelData = { tele: 0, negotiation: 0, order: 0 };
       
@@ -94,7 +91,6 @@ export default function Home() {
       setStatusCounts(Object.entries(sMap).map(([status, count]) => ({ status, count })));
       setFunnel(funnelData);
 
-      // Workload Aggregation
       const wMap: Record<string, number> = {};
       projects.forEach((p: any) => {
         if (p.status !== '完了' && p.status !== '失注') {
@@ -104,7 +100,6 @@ export default function Home() {
       });
       setRepWorkload(Object.entries(wMap).sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count })));
 
-      // Alerts
       const newAlerts: Alert[] = [];
       const today = new Date().toISOString().split('T')[0];
       for (const project of projects.slice(0, 10)) {
@@ -170,7 +165,9 @@ export default function Home() {
   const maxSale = Math.max(...salesByMonth.map(s => Math.max(s.confirmed, s.forecast)), 1);
 
   return (
-    <div className="container">
+    <div className="container" style={{ maxWidth: '100%' }}>
+      
+      {/* PCでのインライン指定を復元 */}
       <header className="grid-responsive" style={{ marginBottom: '3rem', gridTemplateColumns: '1fr auto', alignItems: 'flex-end' }}>
         <div>
           <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>分析ダッシュボード</h1>
@@ -183,15 +180,14 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main Stats Row */}
-      <div className="grid-responsive" style={{ gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: '3rem', gap: '1rem' }}>
+      {/* 5並びの統計カード：PCでは元の5列（repeat(5, 1fr)）のインラインを完全復元 */}
+      <div className="grid-responsive desktop-stats-row" style={{ gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: '3rem', gap: '1rem' }}>
         <div className="glass-panel" style={{ borderTop: '4px solid var(--primary)' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>累計成約額（確定）</p>
           <h2 style={{ fontSize: '1.6rem' }}>¥{(stats.totalRevenue / 10000).toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>万</span></h2>
         </div>
         <div className="glass-panel" style={{ borderTop: '4px solid #a855f7' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>進行中の見込み総額</p>
-          {/* 【修正】万単位の表記を保つため、正しく1万で割り算してからトータルを表示 */}
           <h2 style={{ fontSize: '1.6rem' }}>¥{(stats.totalForecast / 10000).toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>万</span></h2>
         </div>
         <div className="glass-panel" style={{ borderTop: '4px solid var(--accent)' }}>
@@ -208,11 +204,12 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="grid-responsive" style={{ gridTemplateColumns: '2fr 1fr', marginBottom: '2rem' }}>
+      {/* PCでの2列表示（2fr 1fr）のインラインを完全復元 */}
+      <div className="grid-responsive desktop-charts-row" style={{ gridTemplateColumns: '2fr 1fr', marginBottom: '2rem' }}>
         {/* Sales visualization */}
-        <div className="glass-panel">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h3>売上推移（直近6ヶ月）</h3>
+        <div className="glass-panel" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '1rem', flexWrap: 'wrap' }}>
+            <h3 style={{ margin: 0 }}>売上推移（直近6ヶ月）</h3>
             <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                 <span style={{ display: 'inline-block', width: '12px', height: '12px', background: 'var(--primary)', borderRadius: '3px' }}></span> 確定分
@@ -222,47 +219,45 @@ export default function Home() {
               </span>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem', height: '260px', paddingBottom: '30px', paddingTop: '30px' }}>
-            {salesByMonth.map((s, i) => (
-              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', width: '100%', height: '100%', justifyContent: 'center' }}>
-                  {/* 確定バー */}
-                  <div style={{ 
-                    width: '40%', 
-                    height: `${(s.confirmed / maxSale) * 100}%`, 
-                    background: 'linear-gradient(to top, var(--primary), var(--accent))',
-                    borderRadius: '4px 4px 0 0',
-                    position: 'relative',
-                    boxShadow: '0 0 10px rgba(59, 130, 246, 0.1)'
-                  }}>
-                    {s.confirmed > 0 && (
-                      <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.7rem', fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
-                        ¥{(s.confirmed / 10000).toFixed(1)}万
-                      </div>
-                    )}
+          
+          <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1.5rem', height: '260px', paddingBottom: '30px', paddingTop: '30px', width: '100%', minWidth: '460px', paddingLeft: '10px', paddingRight: '10px' }}>
+              {salesByMonth.map((s, i) => (
+                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', width: '100%', height: '100%', justifyContent: 'center' }}>
+                    <div style={{ 
+                      width: '35%', 
+                      height: `${(s.confirmed / maxSale) * 100}%`, 
+                      background: 'linear-gradient(to top, var(--primary), var(--accent))',
+                      borderRadius: '4px 4px 0 0',
+                      position: 'relative',
+                      boxShadow: '0 0 10px rgba(59, 130, 246, 0.1)'
+                    }}>
+                      {s.confirmed > 0 && (
+                        <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
+                          ¥{(s.confirmed / 10000).toFixed(0)}万
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ 
+                      width: '35%', 
+                      height: `${(s.forecast / maxSale) * 100}%`, 
+                      background: 'linear-gradient(to top, #a855f7, #c084fc)',
+                      borderRadius: '4px 4px 0 0',
+                      position: 'relative',
+                      boxShadow: '0 0 10px rgba(168, 85, 247, 0.1)'
+                    }}>
+                      {s.forecast > 0 && (
+                        <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.65rem', fontWeight: 700, color: '#a855f7', whiteSpace: 'nowrap' }}>
+                          ¥{(s.forecast / 10000).toFixed(0)}万
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  {/* 見込みバー */}
-                  <div style={{ 
-                    width: '40%', 
-                    height: `${(s.forecast / maxSale) * 100}%`, 
-                    background: 'linear-gradient(to top, #a855f7, #c084fc)',
-                    borderRadius: '4px 4px 0 0',
-                    position: 'relative',
-                    boxShadow: '0 0 10px rgba(168, 85, 247, 0.1)'
-                  }}>
-                    {s.forecast > 0 && (
-                      <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.7rem', fontWeight: 700, color: '#a855f7', whiteSpace: 'nowrap' }}>
-                        ¥{(s.forecast / 10000).toFixed(1)}万
-                      </div>
-                    )}
-                  </div>
+                  <div style={{ marginTop: '1rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-muted)' }}>{s.month.split('-')[1]}月</div>
                 </div>
-                <div style={{ marginTop: '1rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-muted)' }}>{s.month.split('-')[1]}月</div>
-              </div>
-            ))}
-            {salesByMonth.length === 0 && (
-              <div style={{ width: '100%', textAlign: 'center', color: 'var(--text-muted)', paddingBottom: '50px' }}>表示する売上データがまだありません</div>
-            )}
+              ))}
+            </div>
           </div>
         </div>
 
@@ -291,8 +286,8 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="grid-responsive" style={{ gridTemplateColumns: 'minmax(0, 1fr) 2fr', marginBottom: '2rem' }}>
-        {/* Sales Funnel Analysis */}
+      {/* PCでのファンネル表示（minmax(0, 1fr) 2fr）のインラインを完全復元 */}
+      <div className="grid-responsive desktop-funnel-row" style={{ gridTemplateColumns: 'minmax(0, 1fr) 2fr', marginBottom: '2rem' }}>
         <div className="glass-panel">
           <h3 style={{ marginBottom: '1.5rem' }}>セールスファンネル（歩留まり）</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem', alignItems: 'center' }}>
@@ -328,34 +323,33 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="grid-responsive" style={{ gridTemplateColumns: '1fr 1fr' }}>
-        {/* Urgent Alerts */}
+      {/* PCでの下段2列（1fr 1fr）のインラインを完全復元 */}
+      <div className="grid-responsive desktop-bottom-row" style={{ gridTemplateColumns: '1fr 1fr' }}>
         <div className="glass-panel">
           <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span style={{ color: 'var(--danger)' }}>⚡</span> 緊急対応・遅延
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {alerts.slice(0, 4).map((alert, idx) => (
-              <div key={idx} style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.1)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div key={idx} style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.1)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
                 <div>
                   <p style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.2rem' }}>{alert.projectName}</p>
                   <p style={{ fontSize: '0.75rem', color: 'var(--danger)' }}>{alert.taskName} が期限切れ ({alert.dueDate})</p>
                 </div>
-                <Link href={`/projects/${alert.projectId}`} className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.70rem' }}>工程へ</Link>
+                <Link href={`/projects/${alert.projectId}`} className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.70rem', whiteSpace: 'nowrap' }}>工程へ</Link>
               </div>
             ))}
             {alerts.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>全ての工程が順調です ✨</p>}
           </div>
         </div>
 
-        {/* Rep Ranking / Workload */}
         <div className="glass-panel">
           <h3 style={{ marginBottom: '1.5rem' }}>担当者別 進行案件数</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {repWorkload.slice(0, 10).map((rw, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', borderLeft: rw.count >= 8 ? '4px solid #ef4444' : rw.count >= 5 ? '4px solid #f59e0b' : '4px solid transparent' }}>
                 <div style={{ 
-                  width: '40px', height: '40px', 
+                  width: '40px', height: '40px', flexShrink: 0,
                   background: rw.count >= 8 ? '#ef4444' : rw.count >= 5 ? '#f59e0b' : 'var(--primary)', 
                   borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff' 
                 }}>
@@ -371,7 +365,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div style={{ 
-                  padding: '0.25rem 0.75rem', 
+                  padding: '0.25rem 0.75rem', flexShrink: 0,
                   background: rw.count >= 8 ? 'rgba(239, 68, 68, 0.2)' : rw.count >= 5 ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.05)', 
                   color: rw.count >= 8 ? '#ef4444' : rw.count >= 5 ? '#f59e0b' : 'inherit',
                   borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700 
@@ -384,8 +378,24 @@ export default function Home() {
         </div>
       </div>
 
+      {/* ⚠️ PC表示（デスクトップ）の時は100%元通りのインライン指定が適用され、スマホの時だけインラインを無効化して縦並びにする完璧な命令 */}
+      <style jsx global>{`
+        @media (max-width: 768px) {
+          header, .desktop-stats-row, .desktop-charts-row, .desktop-funnel-row, .desktop-bottom-row {
+            grid-template-columns: 1fr !important;
+          }
+          header {
+            text-align: center;
+          }
+          header .btn {
+            width: 100% !important;
+            margin-top: 1rem;
+          }
+        }
+      `}</style>
+
       <footer style={{ marginTop: '3rem', padding: '2rem', borderTop: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
-        <button className="btn btn-secondary" onClick={handleRecurring} style={{ fontSize: '0.85rem' }}>
+        <button className="btn btn-secondary" onClick={handleRecurring} style={{ fontSize: '0.85rem', width: '100%', maxWidth: '400px' }}>
           🔄 定期案件の翌月工程を一括生成する
         </button>
       </footer>
