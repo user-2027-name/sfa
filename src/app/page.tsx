@@ -36,12 +36,14 @@ export default function Home() {
       const customers = await cRes.json();
       const employees = await eRes.json();
 
+      // 👈 【修正】新しい集計ロジック（受注より右：受注・制作・完了 を確定金額とする）
       const totalRev = projects
-        .filter((p: any) => p.status === '完了')
+        .filter((p: any) => p.status === '受注' || p.status === '制作' || p.status === '完了')
         .reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0);
 
+      // 👈 【修正】新しい集計ロジック（商談より左：テレアポ・商談 を見込み金額とする）
       const totalFore = projects
-        .filter((p: any) => p.status === '受注' || p.status === '制作' || p.status === '商談')
+        .filter((p: any) => p.status === 'テレアポ' || p.status === '商談')
         .reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0);
 
       setStats({
@@ -60,9 +62,10 @@ export default function Home() {
         }
         
         const projectAmount = Number(p.amount || 0);
-        if (p.status === '完了') {
+        // 👈 【修正】月別グラフの集計条件も上記のルールと完全に一致させます
+        if (p.status === '受注' || p.status === '制作' || p.status === '完了') {
           monthlyMap[month].confirmed += projectAmount;
-        } else if (p.status === '受注' || p.status === '制作' || p.status === '商談') {
+        } else if (p.status === 'テレアポ' || p.status === '商談') {
           monthlyMap[month].forecast += projectAmount;
         }
       });
@@ -167,7 +170,6 @@ export default function Home() {
   return (
     <div className="container" style={{ maxWidth: '100%' }}>
       
-      {/* PCでのインライン指定を復元 */}
       <header className="grid-responsive" style={{ marginBottom: '3rem', gridTemplateColumns: '1fr auto', alignItems: 'flex-end' }}>
         <div>
           <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>分析ダッシュボード</h1>
@@ -180,7 +182,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* 5並びの統計カード：PCでは元の5列（repeat(5, 1fr)）のインラインを完全復元 */}
       <div className="grid-responsive desktop-stats-row" style={{ gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: '3rem', gap: '1rem' }}>
         <div className="glass-panel" style={{ borderTop: '4px solid var(--primary)' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>累計成約額（確定）</p>
@@ -204,7 +205,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* PCでの2列表示（2fr 1fr）のインラインを完全復元 */}
       <div className="grid-responsive desktop-charts-row" style={{ gridTemplateColumns: '2fr 1fr', marginBottom: '2rem' }}>
         {/* Sales visualization */}
         <div className="glass-panel" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
@@ -286,7 +286,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* PCでのファンネル表示（minmax(0, 1fr) 2fr）のインラインを完全復元 */}
       <div className="grid-responsive desktop-funnel-row" style={{ gridTemplateColumns: 'minmax(0, 1fr) 2fr', marginBottom: '2rem' }}>
         <div className="glass-panel">
           <h3 style={{ marginBottom: '1.5rem' }}>セールスファンネル（歩留まり）</h3>
@@ -323,7 +322,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* PCでの下段2列（1fr 1fr）のインラインを完全復元 */}
       <div className="grid-responsive desktop-bottom-row" style={{ gridTemplateColumns: '1fr 1fr' }}>
         <div className="glass-panel">
           <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -378,7 +376,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ⚠️ PC表示（デスクトップ）の時は100%元通りのインライン指定が適用され、スマホの時だけインラインを無効化して縦並びにする完璧な命令 */}
       <style jsx global>{`
         @media (max-width: 768px) {
           header, .desktop-stats-row, .desktop-charts-row, .desktop-funnel-row, .desktop-bottom-row {
