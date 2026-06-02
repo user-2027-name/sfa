@@ -144,7 +144,8 @@ export default function ProjectsPage() {
       }),
     });
     if (res.ok) {
-      toast.success('案件を新しく登録しました！'); // 👈 トースト通知を発火
+      // 👈 表示位置を真ん中にするため、第2引数で position を top-center に指定
+      toast.success('案件を新しく登録しました！', { position: 'top-center' });
       setName('');
       setCustomerId('');
       setCustomerSearch('');
@@ -160,7 +161,7 @@ export default function ProjectsPage() {
       fetchSettings();
       fetchProjects();
     } else {
-      toast.error('案件の登録に失敗しました');
+      toast.error('案件の登録に失敗しました', { position: 'top-center' });
     }
   };
 
@@ -189,10 +190,10 @@ export default function ProjectsPage() {
           body: JSON.stringify(results.data),
         });
         if (res.ok) {
-          toast.success('インポートに成功しました！');
+          toast.success('インポートに成功しました！', { position: 'top-center' });
           fetchProjects();
         } else {
-          toast.error('インポートに失敗しました');
+          toast.error('インポートに失敗しました', { position: 'top-center' });
         }
       }
     });
@@ -209,7 +210,7 @@ export default function ProjectsPage() {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editForm || !editForm.id) {
-      toast.error('エラー: 更新対象の案件IDが見つかりません');
+      toast.error('エラー: 更新対象の案件IDが見つかりません', { position: 'top-center' });
       return;
     }
 
@@ -218,7 +219,7 @@ export default function ProjectsPage() {
       const tasks = await tRes.json();
       const unfinished = tasks.filter((t: any) => t.status !== '完了');
       if (unfinished.length > 0) {
-        toast('未完了のタスクが残っています。', { icon: 'ℹ️' });
+        toast('未完了のタスクが残っています。', { icon: 'ℹ️', position: 'top-center' });
       }
     }
 
@@ -229,12 +230,12 @@ export default function ProjectsPage() {
     });
 
     if (res.ok) {
-      toast.success('案件情報を更新しました');
+      toast.success('案件情報を更新しました', { position: 'top-center' });
       setEditingProject(null);
       fetchProjects();
     } else {
       const errorData = await res.json();
-      toast.error(`更新に失敗しました: ${errorData.details || '不明なエラー'}`);
+      toast.error(`更新に失敗しました: ${errorData.details || '不明なエラー'}`, { position: 'top-center' });
     }
   };
 
@@ -256,14 +257,17 @@ export default function ProjectsPage() {
     }
   };
 
+  // 👈 削除ボタンを押した時だけ、確認用のポップアップ（confirm）が出るように完全復活
   const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`案件「${name}」を削除しますか？\n付随するタスク工程もすべて削除されます。`)) return;
+
     const res = await fetch(`/api/projects?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
     if (res.ok) {
-      toast.success(`案件「${name}」を削除しました`);
+      toast.success(`案件「${name}」を削除しました`, { position: 'top-center' });
       fetchProjects();
     } else {
       const errorData = await res.json();
-      toast.error(`削除に失敗しました: ${errorData.details || '不明なエラー'}`);
+      toast.error(`削除に失敗しました: ${errorData.details || '不明なエラー'}`, { position: 'top-center' });
     }
   };
 
@@ -615,7 +619,7 @@ export default function ProjectsPage() {
                   body: JSON.stringify({ key: 'shared_webhook_url', value: globalWebhookUrl })
                 });
                 if (res.ok) {
-                  toast.success('共通Webhook設定を保存しました');
+                  toast.success('共通Webhook設定を保存しました', { position: 'top-center' });
                   fetchSettings();
                 }
               }}
