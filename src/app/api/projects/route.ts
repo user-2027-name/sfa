@@ -54,8 +54,16 @@ export async function POST(request: Request) {
       notify_external, sales_webhook, production_webhook, notes, template_id, shared_drive_url, discussion_date
     } = await request.json();
 
-    const dateStr = order_date.replace(/-/g, '');
-    const typeCode = contract_type === '月額定額' ? 'R' : 'S';
+    const dateStr = order_date ? order_date.replace(/-/g, '') : new Date().toISOString().split('T')[0].replace(/-/g, '');
+    
+    // 👈 【バグ修正】年間契約用のプレフィックス 'Y' を新設して、文字数超過や不整合を防ぐ
+    let typeCode = 'S';
+    if (contract_type === '月定額' || contract_type === '月額定額') {
+      typeCode = 'R';
+    } else if (contract_type === '年間契約') {
+      typeCode = 'Y';
+    }
+    
     const parsedAmount = amount === '' || amount === undefined ? 0 : Number(amount);
     
     const projectId = await sql.begin(async (sql: any) => {
@@ -83,6 +91,8 @@ export async function POST(request: Request) {
       if (status === '制作') { negAt = today; ordAt = today; progAt = today; }
       if (status === '完了' || status === '失注') { negAt = today; ordAt = today; progAt = today; doneAt = today; }
 
+      const finalOrderDate = order_date || today;
+
       await sql`
         INSERT INTO projects (
           id, name, contract_type, status, amount, order_date, deadline, 
@@ -90,10 +100,10 @@ export async function POST(request: Request) {
           notify_external, sales_webhook, production_webhook,
           status_negotiation_at, status_order_at, status_progress_at, status_done_at, notes, shared_drive_url, discussion_date
         ) VALUES (
-          ${newProjectId}, ${name}, ${contract_type}, ${status}, ${parsedAmount}, ${order_date}, ${deadline || null}, 
+          ${newProjectId}, ${name}, ${contract_type}, ${status}, ${parsedAmount}, ${finalOrderDate}, ${deadline || null}, 
           ${sales_rep_id || null}, ${production_rep_id || null}, ${customer_id || null}, 
-          ${notify_external ? 1 : 0}, ${sales_webhook}, ${production_webhook},
-          ${negAt}, ${ordAt}, ${progAt}, ${doneAt}, ${notes}, ${shared_drive_url}, ${discussion_date || null}
+          ${notify_external ? 1 : 0}, ${sales_webhook || null}, ${production_webhook || null},
+          ${negAt}, ${ordAt}, ${progAt}, ${doneAt}, ${notes || null}, ${shared_drive_url || null}, ${discussion_date || null}
         )
       `;
       
@@ -107,8 +117,8 @@ export async function POST(request: Request) {
       }
 
       const taskQueries = tasksToInsert.map((taskName, index) => {
-        let dueDate = order_date;
-        if (taskName === '納品' || taskName === 'クロージング') dueDate = deadline || order_date;
+        let dueDate = finalOrderDate;
+        if (taskName === '納品' || taskName === 'クロージング') dueDate = deadline || finalOrderDate;
         return sql`
           INSERT INTO tasks (project_id, name, due_date, status, order_index) 
           VALUES (${newProjectId}, ${taskName}, ${dueDate}, '未着手', ${index})
@@ -121,9 +131,9 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ id: projectId, name, contract_type, status });
-  } catch (error) {
-    console.error('Project creation error:', error);
-    return NextResponse.json({ error: 'Failed to create project' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Project creation error details:', error.message || error);
+    return NextResponse.json({ error: 'Failed to create project', details: error.message }, { status: 500 });
   }
 }
 
@@ -182,7 +192,6 @@ export async function PATCH(request: Request) {
       WHERE id = ${id}
     `;
 
-    // Notification Logic
     const finalNotifyExternal = notify_external !== undefined ? notify_external : current.notify_external;
     const finalSalesWebhook = sales_webhook || current.sales_webhook;
     const finalProductionWebhook = production_webhook || current.production_webhook;
