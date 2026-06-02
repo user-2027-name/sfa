@@ -60,6 +60,7 @@ export default function ProjectsPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null); // 👈 【新設】現在削除処理中の案件IDを管理
 
   const [activeTab, setActiveTab] = useState<'すべて' | '単発' | '月定額' | '年間契約'>('すべて');
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -180,17 +181,22 @@ export default function ProjectsPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('この案件を削除してもよろしいですか？')) return;
+    
+    setDeletingId(id); // 👈 削除ローディング開始！
+
     try {
       const res = await fetch(`/api/projects?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         toast.success('案件を完全に消去しました', { position: 'top-center' });
-        fetchData();
+        await fetchData();
       } else {
         toast.error('削除に失敗しました', { position: 'top-center' });
       }
     } catch (err) {
       console.error(err);
       toast.error('通信エラーが発生しました', { position: 'top-center' });
+    } finally {
+      setDeletingId(null); // 👈 削除ローディング終了
     }
   };
 
@@ -262,18 +268,18 @@ export default function ProjectsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
             <div className="form-group">
               <label className="label">案件名 *</label>
-              <input className="input" placeholder="例: Webサイトリニューアル" value={name} onChange={(e) => setName(e.target.value)} required />
+              <input className="input" placeholder="例: Webサイトリニューアル" value={name} onChange={(e) => setName(e.target.value)} required disabled={isSubmitting} />
             </div>
             <div className="form-group">
               <label className="label">所属顧客 *</label>
-              <select className="input" value={customerId} onChange={(e) => setCustomerId(e.target.value)} required>
+              <select className="input" value={customerId} onChange={(e) => setCustomerId(e.target.value)} required disabled={isSubmitting}>
                 <option value="">-- 顧客を選択 --</option>
                 {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div className="form-group">
               <label className="label">契約種別</label>
-              <select className="input" value={contractType} onChange={(e) => setContractType(e.target.value)}>
+              <select className="input" value={contractType} onChange={(e) => setContractType(e.target.value)} disabled={isSubmitting}>
                 <option value="単発">単発案件</option>
                 <option value="月定額">月額定額案件 (リカーリング)</option>
                 <option value="年間契約">年間契約案件</option>
@@ -281,7 +287,7 @@ export default function ProjectsPage() {
             </div>
             <div className="form-group">
               <label className="label">初期ステータス</label>
-              <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
+              <select className="input" value={status} onChange={(e) => setStatus(e.target.value)} disabled={isSubmitting}>
                 <option value="テレアポ">テレアポ</option>
                 <option value="商談">商談</option>
                 <option value="受注">受注</option>
@@ -295,33 +301,33 @@ export default function ProjectsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
             <div className="form-group">
               <label className="label">契約金額 (税別)</label>
-              <input type="number" className="input" placeholder="金額を半角数字で入力" value={amount} onChange={(e) => setAmount(e.target.value === '' ? '' : Number(e.target.value))} />
+              <input type="number" className="input" placeholder="金額を半角数字で入力" value={amount} onChange={(e) => setAmount(e.target.value === '' ? '' : Number(e.target.value))} disabled={isSubmitting} />
             </div>
             <div className="form-group">
               <label className="label">営業受注日 (起算日)</label>
-              <input type="date" className="input" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
+              <input type="date" className="input" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} disabled={isSubmitting} />
             </div>
             <div className="form-group">
               <label className="label">完了・納期期限</label>
-              <input type="date" className="input" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+              <input type="date" className="input" value={deadline} onChange={(e) => setDeadline(e.target.value)} disabled={isSubmitting} />
             </div>
             <div className="form-group">
               <label className="label">次回商談日時 (任意)</label>
-              <input type="datetime-local" className="input" value={discussionDate} onChange={(e) => setDiscussionDate(e.target.value)} />
+              <input type="datetime-local" className="input" value={discussionDate} onChange={(e) => setDiscussionDate(e.target.value)} disabled={isSubmitting} />
             </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
             <div className="form-group">
               <label className="label">営業担当者</label>
-              <select className="input" value={salesRepId} onChange={(e) => setSalesRepId(e.target.value)}>
+              <select className="input" value={salesRepId} onChange={(e) => setSalesRepId(e.target.value)} disabled={isSubmitting}>
                 <option value="">指定なし</option>
                 {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name} ({emp.department})</option>)}
               </select>
             </div>
             <div className="form-group">
               <label className="label">制作ディレクター / 担当</label>
-              <select className="input" value={productionRepId} onChange={(e) => setProductionRepId(e.target.value)}>
+              <select className="input" value={productionRepId} onChange={(e) => setProductionRepId(e.target.value)} disabled={isSubmitting}>
                 <option value="">指定なし</option>
                 {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name} ({emp.department})</option>)}
               </select>
@@ -331,24 +337,24 @@ export default function ProjectsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
             <div className="form-group">
               <label className="label">営業用通知WebHook URL (独自設定用)</label>
-              <input className="input" placeholder="https://chatwork.com/gateway/..." value={salesWebhook} onChange={(e) => setSalesWebhook(e.target.value)} />
+              <input className="input" placeholder="https://chatwork.com/gateway/..." value={salesWebhook} onChange={(e) => setSalesWebhook(e.target.value)} disabled={isSubmitting} />
             </div>
             <div className="form-group">
               <label className="label">制作用通知WebHook URL (独自設定用)</label>
-              <input className="input" placeholder="https://hooks.slack.com/services/..." value={productionWebhook} onChange={(e) => setProductionWebhook(e.target.value)} />
+              <input className="input" placeholder="https://hooks.slack.com/services/..." value={productionWebhook} onChange={(e) => setProductionWebhook(e.target.value)} disabled={isSubmitting} />
             </div>
           </div>
 
           <div className="form-group">
             <label className="label">備考欄・引き継ぎメモ</label>
-            <textarea className="input" style={{ height: '80px', paddingTop: '0.5rem' }} placeholder="案件に関する特記事項や詳細など" value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <textarea className="input" style={{ height: '80px', paddingTop: '0.5rem' }} placeholder="案件に関する特記事項や詳細など" value={notes} onChange={(e) => setNotes(e.target.value)} disabled={isSubmitting} />
           </div>
 
           <button 
             type="submit" 
             className="btn btn-primary" 
             style={{ marginTop: '0.5rem', alignSelf: 'flex-start', padding: '0.75rem 2rem', opacity: isSubmitting ? 0.6 : 1, cursor: isSubmitting ? 'not-allowed' : 'pointer' }}
-            disabled={isSubmitting}
+            disabled={isSubmitting || deletingId !== null}
           >
             {isSubmitting ? '⏳ 登録処理中...' : '➕ この内容で案件を新規構築'}
           </button>
@@ -424,7 +430,6 @@ export default function ProjectsPage() {
                   </span>
                 </td>
                 <td style={{ padding: '1rem', fontWeight: 700 }}>¥{(Number(p.amount || 0)).toLocaleString()}</td>
-                {/* 👈 【大修正】受注日・納期期限から余計な文字を省き、純粋な YYYY-MM-DD だけで出力 */}
                 <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
                   {p.order_date ? p.order_date.substring(0, 10) : '---'}
                 </td>
@@ -434,8 +439,17 @@ export default function ProjectsPage() {
                 <td style={{ padding: '1rem' }}>{p.sales_rep_name || '未指定'}</td>
                 <td style={{ padding: '1rem' }}>{p.production_rep_name || '未指定'}</td>
                 <td style={{ padding: '1rem', textAlign: 'right' }}>
-                  <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', marginRight: '0.5rem' }} onClick={() => handleEditClick(p)}>編集</button>
-                  <button className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }} onClick={() => handleDelete(p.id)}>削除</button>
+                  {/* 👈 【修正】削除処理中は編集ボタンを無効化 */}
+                  <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', marginRight: '0.5rem' }} onClick={() => handleEditClick(p)} disabled={deletingId !== null}>編集</button>
+                  {/* 👈 【修正】削除処理中のローディング制御を適用 */}
+                  <button 
+                    className="btn" 
+                    style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', opacity: deletingId !== null ? 0.5 : 1 }} 
+                    onClick={() => handleDelete(p.id)}
+                    disabled={deletingId !== null}
+                  >
+                    {deletingId === p.id ? '⏳...' : '削除'}
+                  </button>
                 </td>
               </tr>
             ))}
@@ -457,11 +471,11 @@ export default function ProjectsPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
                   <label className="label">案件名</label>
-                  <input className="input" value={editForm.name || ''} onChange={(e) => setEditForm({...editForm, name: e.target.value})} required />
+                  <input className="input" value={editForm.name || ''} onChange={(e) => setEditForm({...editForm, name: e.target.value})} required disabled={isUpdating} />
                 </div>
                 <div className="form-group">
                   <label className="label">契約種別</label>
-                  <select className="input" value={editForm.contract_type || '単発'} onChange={(e) => setEditForm({...editForm, contract_type: e.target.value})}>
+                  <select className="input" value={editForm.contract_type || '単発'} onChange={(e) => setEditForm({...editForm, contract_type: e.target.value})} disabled={isUpdating}>
                     <option value="単発">単発案件</option>
                     <option value="月定額">月額定額案件</option>
                     <option value="年間契約">年間契約案件</option>
@@ -472,7 +486,7 @@ export default function ProjectsPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
                   <label className="label">ステータス</label>
-                  <select className="input" value={editForm.status || '商談'} onChange={(e) => setEditForm({...editForm, status: e.target.value})}>
+                  <select className="input" value={editForm.status || '商談'} onChange={(e) => setEditForm({...editForm, status: e.target.value})} disabled={isUpdating}>
                     <option value="テレアポ">テレアポ</option>
                     <option value="商談">商談</option>
                     <option value="受注">受注</option>
@@ -483,32 +497,32 @@ export default function ProjectsPage() {
                 </div>
                 <div className="form-group">
                   <label className="label">金額</label>
-                  <input type="number" className="input" value={editForm.amount ?? ''} onChange={(e) => setEditForm({...editForm, amount: e.target.value === '' ? '' : Number(e.target.value)})} />
+                  <input type="number" className="input" value={editForm.amount ?? ''} onChange={(e) => setEditForm({...editForm, amount: e.target.value === '' ? '' : Number(e.target.value)})} disabled={isUpdating} />
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
                   <label className="label">営業受注日</label>
-                  <input type="date" className="input" value={editForm.order_date ? editForm.order_date.substring(0,10) : ''} onChange={(e) => setEditForm({...editForm, order_date: e.target.value})} />
+                  <input type="date" className="input" value={editForm.order_date ? editForm.order_date.substring(0,10) : ''} onChange={(e) => setEditForm({...editForm, order_date: e.target.value})} disabled={isUpdating} />
                 </div>
                 <div className="form-group">
                   <label className="label">期限・納期</label>
-                  <input type="date" className="input" value={editForm.deadline ? editForm.deadline.substring(0,10) : ''} onChange={(e) => setEditForm({...editForm, deadline: e.target.value})} />
+                  <input type="date" className="input" value={editForm.deadline ? editForm.deadline.substring(0,10) : ''} onChange={(e) => setEditForm({...editForm, deadline: e.target.value})} disabled={isUpdating} />
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
                   <label className="label">営業担当者</label>
-                  <select className="input" value={editForm.sales_rep_id ?? ''} onChange={(e) => setEditForm({...editForm, sales_rep_id: e.target.value ? Number(e.target.value) : null})}>
+                  <select className="input" value={editForm.sales_rep_id ?? ''} onChange={(e) => setEditForm({...editForm, sales_rep_id: e.target.value ? Number(e.target.value) : null})} disabled={isUpdating}>
                     <option value="">指定なし</option>
                     {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
                   <label className="label">制作担当者</label>
-                  <select className="input" value={editForm.production_rep_id ?? ''} onChange={(e) => setEditForm({...editForm, production_rep_id: e.target.value ? Number(e.target.value) : null})}>
+                  <select className="input" value={editForm.production_rep_id ?? ''} onChange={(e) => setEditForm({...editForm, production_rep_id: e.target.value ? Number(e.target.value) : null})} disabled={isUpdating}>
                     <option value="">指定なし</option>
                     {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
                   </select>
@@ -518,17 +532,17 @@ export default function ProjectsPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
                   <label className="label">営業用通知URL</label>
-                  <input className="input" placeholder="営業WebHook..." value={editForm.sales_webhook || ''} onChange={(e) => setEditForm({...editForm, sales_webhook: e.target.value})} />
+                  <input className="input" placeholder="営業WebHook..." value={editForm.sales_webhook || ''} onChange={(e) => setEditForm({...editForm, sales_webhook: e.target.value})} disabled={isUpdating} />
                 </div>
                 <div className="form-group">
                   <label className="label">制作用通知URL</label>
-                  <input className="input" placeholder="制作WebHook..." value={editForm.production_webhook || ''} onChange={(e) => setEditForm({...editForm, production_webhook: e.target.value})} />
+                  <input className="input" placeholder="制作WebHook..." value={editForm.production_webhook || ''} onChange={(e) => setEditForm({...editForm, production_webhook: e.target.value})} disabled={isUpdating} />
                 </div>
               </div>
 
               <div className="form-group">
                 <label className="label">備考 / メモ</label>
-                <textarea className="input" style={{ height: '80px', paddingTop: '0.5rem' }} value={editForm.notes || ''} onChange={(e) => setEditForm({...editForm, notes: e.target.value})} />
+                <textarea className="input" style={{ height: '80px', paddingTop: '0.5rem' }} value={editForm.notes || ''} onChange={(e) => setEditForm({...editForm, notes: e.target.value})} disabled={isUpdating} />
               </div>
               
               <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>

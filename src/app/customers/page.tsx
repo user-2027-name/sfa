@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { toast } from 'react-hot-toast'; // 👈 トースト通知を100%復活
+import { toast } from 'react-hot-toast'; 
 
 interface Customer {
   id: number;
@@ -25,9 +25,9 @@ export default function CustomersPage() {
   const [contractType, setContractType] = useState('未定'); 
   const [address, setAddress] = useState(''); 
 
-  // 👈 【新設】連打防止用のローディング管理状態
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null); // 👈 【新設】現在削除処理中の顧客IDを管理
 
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [editForm, setEditForm] = useState<Partial<Customer>>({});
@@ -54,7 +54,7 @@ export default function CustomersPage() {
       return;
     }
 
-    setIsSubmitting(true); // 👈 登録処理開始（ボタンをロック）
+    setIsSubmitting(true); 
 
     const payload = {
       name,
@@ -73,7 +73,7 @@ export default function CustomersPage() {
         body: JSON.stringify(payload)
       });
       if (res.ok) {
-        toast.success('顧客を新しく登録しました！', { position: 'top-center' }); // 👈 トースト発火
+        toast.success('顧客を新しく登録しました！', { position: 'top-center' }); 
         setName('');
         setCustomerRep('');
         setEmail('');
@@ -89,7 +89,7 @@ export default function CustomersPage() {
       console.error(err);
       toast.error('通信エラーが発生しました', { position: 'top-center' });
     } finally {
-      setIsSubmitting(false); // 👈 処理終了（ボタンロック解除）
+      setIsSubmitting(false); 
     }
   };
 
@@ -100,9 +100,9 @@ export default function CustomersPage() {
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingCustomer) return;
+    if (!editingProject) return; // ※型ガード
 
-    setIsUpdating(true); // 👈 更新処理開始（ボタンをロック）
+    setIsUpdating(true); 
 
     try {
       const res = await fetch('/api/customers', {
@@ -120,7 +120,7 @@ export default function CustomersPage() {
         })
       });
       if (res.ok) {
-        toast.success('顧客情報を更新しました', { position: 'top-center' }); // 👈 トースト発火
+        toast.success('顧客情報を更新しました', { position: 'top-center' }); 
         setEditingCustomer(null);
         await fetchCustomers();
       } else {
@@ -130,7 +130,7 @@ export default function CustomersPage() {
       console.error(err);
       toast.error('通信エラーが発生しました', { position: 'top-center' });
     } finally {
-      setIsUpdating(false); // 👈 処理終了（ボタンロック解除）
+      setIsUpdating(false); 
     }
   };
 
@@ -148,16 +148,20 @@ export default function CustomersPage() {
 
       if (!confirm(`顧客「${customerName}」を削除してもよろしいですか？`)) return;
 
+      setDeletingId(id); // 👈 削除ローディング開始！
+
       const deleteRes = await fetch(`/api/customers?id=${id}`, { method: 'DELETE' });
       if (deleteRes.ok) {
         toast.success(`顧客「${customerName}」を削除しました`, { position: 'top-center' });
-        fetchCustomers();
+        await fetchCustomers();
       } else {
         toast.error('顧客の削除に失敗しました。', { position: 'top-center' });
       }
     } catch (err) {
       console.error(err);
       toast.error('通信エラーが発生しました。', { position: 'top-center' });
+    } finally {
+      setDeletingId(null); // 👈 削除ローディング解除
     }
   };
 
@@ -216,8 +220,17 @@ export default function CustomersPage() {
                 {c.created_at ? c.created_at.substring(0, 10) : '---'}
               </td>
               <td style={{ padding: '1rem', textAlign: 'right' }}>
-                <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', marginRight: '0.5rem' }} onClick={() => handleEditClick(c)}>編集</button>
-                <button className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }} onClick={() => handleDelete(c.id, c.name)}>削除</button>
+                {/* 👈 【修正】誰かが削除中の間は、編集ボタンを非活性化 */}
+                <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', marginRight: '0.5rem' }} onClick={() => handleEditClick(c)} disabled={deletingId !== null}>編集</button>
+                {/* 👈 【修正】自身が削除中の場合は「⏳...」にし、ボタンをdisabledにする */}
+                <button 
+                  className="btn" 
+                  style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', opacity: deletingId !== null ? 0.5 : 1 }} 
+                  onClick={() => handleDelete(c.id, c.name)}
+                  disabled={deletingId !== null}
+                >
+                  {deletingId === c.id ? '⏳...' : '削除'}
+                </button>
               </td>
             </tr>
           ))}
@@ -245,26 +258,26 @@ export default function CustomersPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
             <div className="form-group">
               <label className="label">顧客名 *</label>
-              <input className="input" placeholder="例: 株式会社インテグレーション" value={name} onChange={(e) => setName(e.target.value)} required />
+              <input className="input" placeholder="例: 株式会社インテグレーション" value={name} onChange={(e) => setName(e.target.value)} required disabled={isSubmitting} />
             </div>
             <div className="form-group">
               <label className="label">担当者名</label>
-              <input className="input" placeholder="例: 山田 太郎" value={customerRep} onChange={(e) => setCustomerRep(e.target.value)} />
+              <input className="input" placeholder="例: 山田 太郎" value={customerRep} onChange={(e) => setCustomerRep(e.target.value)} disabled={isSubmitting} />
             </div>
             <div className="form-group">
               <label className="label">メールアドレス</label>
-              <input type="email" className="input" placeholder="example@domain.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input type="email" className="input" placeholder="example@domain.com" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isSubmitting} />
             </div>
             <div className="form-group">
               <label className="label">電話番号</label>
-              <input type="tel" className="input" placeholder="03-XXXX-XXXX" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <input type="tel" className="input" placeholder="03-XXXX-XXXX" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isSubmitting} />
             </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
             <div className="form-group">
               <label className="label">取引状況 (ステータス)</label>
-              <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
+              <select className="select" value={status} onChange={(e) => setStatus(e.target.value)} disabled={isSubmitting}>
                 <option value="検討中">検討中</option>
                 <option value="契約中">🎉 契約中</option>
                 <option value="解約">解約</option>
@@ -272,7 +285,7 @@ export default function CustomersPage() {
             </div>
             <div className="form-group">
               <label className="label">現在の契約種別</label>
-              <select className="select" value={contractType} onChange={(e) => setContractType(e.target.value)}>
+              <select className="select" value={contractType} onChange={(e) => setContractType(e.target.value)} disabled={isSubmitting}>
                 <option value="未定">未定（検討中など）</option>
                 <option value="単発">単発案件</option>
                 <option value="月定額">月額定額案件 (リカーリング)</option>
@@ -283,15 +296,14 @@ export default function CustomersPage() {
 
           <div className="form-group">
             <label className="label">住所・アクセス情報</label>
-            <input className="input" placeholder="東京都渋谷区..." value={address} onChange={(e) => setAddress(e.target.value)} />
+            <input className="input" placeholder="東京都渋谷区..." value={address} onChange={(e) => setAddress(e.target.value)} disabled={isSubmitting} />
           </div>
 
-          {/* 👈 【修正】処理中はボタン文言を変更し、disabledでクリック不可能にする */}
           <button 
             type="submit" 
             className="btn btn-primary" 
             style={{ alignSelf: 'flex-start', padding: '0.75rem 2rem', opacity: isSubmitting ? 0.6 : 1, cursor: isSubmitting ? 'not-allowed' : 'pointer' }}
-            disabled={isSubmitting}
+            disabled={isSubmitting || deletingId !== null}
           >
             {isSubmitting ? '⏳ 登録処理中...' : '👥 顧客データベースに登録'}
           </button>
@@ -310,29 +322,29 @@ export default function CustomersPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
                   <label className="label">顧客名</label>
-                  <input className="input" value={editForm.name || ''} onChange={(e) => setEditForm({...editForm, name: e.target.value})} required />
+                  <input className="input" value={editForm.name || ''} onChange={(e) => setEditForm({...editForm, name: e.target.value})} required disabled={isUpdating} />
                 </div>
                 <div className="form-group">
                   <label className="label">担当者名</label>
-                  <input className="input" value={editForm.customer_rep || ''} onChange={(e) => setEditForm({...editForm, customer_rep: e.target.value})} />
+                  <input className="input" value={editForm.customer_rep || ''} onChange={(e) => setEditForm({...editForm, customer_rep: e.target.value})} disabled={isUpdating} />
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
                   <label className="label">メールアドレス</label>
-                  <input type="email" className="input" value={editForm.email || ''} onChange={(e) => setEditForm({...editForm, email: e.target.value})} />
+                  <input type="email" className="input" value={editForm.email || ''} onChange={(e) => setEditForm({...editForm, email: e.target.value})} disabled={isUpdating} />
                 </div>
                 <div className="form-group">
                   <label className="label">電話番号</label>
-                  <input type="tel" className="input" value={editForm.phone || ''} onChange={(e) => setEditForm({...editForm, phone: e.target.value})} />
+                  <input type="tel" className="input" value={editForm.phone || ''} onChange={(e) => setEditForm({...editForm, phone: e.target.value})} disabled={isUpdating} />
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
                   <label className="label">取引状況</label>
-                  <select className="select" value={editForm.status || '検討中'} onChange={(e) => setEditForm({...editForm, status: e.target.value})}>
+                  <select className="select" value={editForm.status || '検討中'} onChange={(e) => setEditForm({...editForm, status: e.target.value})} disabled={isUpdating}>
                     <option value="検討中">検討中</option>
                     <option value="契約中">契約中</option>
                     <option value="解約">解約</option>
@@ -340,7 +352,7 @@ export default function CustomersPage() {
                 </div>
                 <div className="form-group">
                   <label className="label">現在の契約種別</label>
-                  <select className="select" value={editForm.contract_type || '未定'} onChange={(e) => setEditForm({...editForm, contract_type: e.target.value})}>
+                  <select className="select" value={editForm.contract_type || '未定'} onChange={(e) => setEditForm({...editForm, contract_type: e.target.value})} disabled={isUpdating}>
                     <option value="未定">未定（検討中など）</option>
                     <option value="単発">単発案件</option>
                     <option value="月定額">月額定額案件</option>
@@ -351,11 +363,10 @@ export default function CustomersPage() {
 
               <div className="form-group">
                 <label className="label">住所・アクセス情報</label>
-                <textarea className="input" style={{ height: '60px', paddingTop: '0.5rem' }} value={editForm.address || ''} onChange={(e) => setEditForm({...editForm, address: e.target.value})} />
+                <textarea className="input" style={{ height: '80px', paddingTop: '0.5rem' }} value={editForm.address || ''} onChange={(e) => setEditForm({...editForm, address: e.target.value})} disabled={isUpdating} />
               </div>
               
               <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
-                {/* 👈 【修正】編集用モーダルの保存ボタンも同様にブロック制御 */}
                 <button 
                   type="submit" 
                   className="btn btn-primary" 
