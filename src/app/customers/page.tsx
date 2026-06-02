@@ -113,21 +113,39 @@ export default function CustomersPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('この顧客データを削除してもよろしいですか？')) return;
+  // 👈 【大修正】安全な削除バリデーション処理
+  const handleDelete = async (id: number, customerName: string) => {
     try {
-      const res = await fetch(`/api/customers?id=${id}`, { method: 'DELETE' });
-      if (res.ok) fetchCustomers();
+      // 1. 案件APIに問い合わせて、この顧客に紐づく案件があるか事前に調査
+      const res = await fetch(`/api/projects?customerId=${id}`);
+      if (!res.ok) throw new Error('案件データの確認に失敗しました');
+      
+      const relatedProjects = await res.json();
+      
+      // 2. 案件が1件でも残っていたらポップアップを出して処理をブロック
+      if (relatedProjects && relatedProjects.length > 0) {
+        alert(`⚠️ 削除できません\n\n顧客「${customerName}」には、まだ紐づいている案件が ${relatedProjects.length} 件残っています。\n先に「案件管理」画面から対象の案件を削除するか、所属顧客を変更してください。`);
+        return;
+      }
+
+      // 3. 案件がゼロのときだけ、最終確認のポップアップを出す
+      if (!confirm(`顧客「${customerName}」を削除してもよろしいですか？`)) return;
+
+      const deleteRes = await fetch(`/api/customers?id=${id}`, { method: 'DELETE' });
+      if (deleteRes.ok) {
+        fetchCustomers();
+      } else {
+        alert('顧客の削除に失敗しました。');
+      }
     } catch (err) {
       console.error(err);
+      alert('通信エラーが発生しました。');
     }
   };
 
-  // 👈 【変更】データを「契約中」と「それ以外（見込み/解約）」に完全分離
   const activeCustomers = customers.filter(c => c.status === '契約中');
   const leadCustomers = customers.filter(c => c.status !== '契約中');
 
-  // 共通のテーブル表示用コンポーネント
   const CustomerTable = ({ data, title, icon }: { data: Customer[], title: string, icon: string }) => (
     <div className="glass-panel" style={{ marginBottom: '2.5rem', overflowX: 'auto' }}>
       <h3 style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -143,7 +161,7 @@ export default function CustomersPage() {
             <th style={{ padding: '1rem' }}>電話番号</th>
             <th style={{ padding: '1rem' }}>取引状況</th>
             <th style={{ padding: '1rem' }}>契約種別</th> 
-            <th style={{ padding: '1rem', width: '120px' }}>登録日</th> {/* 👈 タイムゾーン表記なしの純粋な日付列 */}
+            <th style={{ padding: '1rem', width: '120px' }}>登録日</th> 
             <th style={{ padding: '1rem', textAlign: 'right', width: '140px' }}>操作</th>
           </tr>
         </thead>
@@ -176,13 +194,13 @@ export default function CustomersPage() {
                   {c.contract_type || '未定'}
                 </span>
               </td>
-              {/* 👈 不要なタイムゾーン表記や記号を一切無くし、YYYY-MM-DD だけを綺麗に出力 */}
               <td style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                 {c.created_at ? c.created_at.substring(0, 10) : '---'}
               </td>
               <td style={{ padding: '1rem', textAlign: 'right' }}>
                 <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', marginRight: '0.5rem' }} onClick={() => handleEditClick(c)}>編集</button>
-                <button className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }} onClick={() => handleDelete(c.id)}>削除</button>
+                {/* 👈 handleDelete に顧客名も渡すように修正 */}
+                <button className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }} onClick={() => handleDelete(c.id, c.name)}>削除</button>
               </td>
             </tr>
           ))}
@@ -257,7 +275,6 @@ export default function CustomersPage() {
         </form>
       </div>
 
-      {/* 👈 【大修正】「契約中」と「見込み・解約」で2つのテーブルを縦に並べて同時表示 */}
       <CustomerTable data={activeCustomers} title="現在契約中の顧客マスタ" icon="🎉" />
       <CustomerTable data={leadCustomers} title="検討中（見込み）および解約の顧客一覧" icon="🔍" />
 
