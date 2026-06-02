@@ -123,11 +123,84 @@ export default function CustomersPage() {
     }
   };
 
+  // 👈 【変更】データを「契約中」と「それ以外（見込み/解約）」に完全分離
+  const activeCustomers = customers.filter(c => c.status === '契約中');
+  const leadCustomers = customers.filter(c => c.status !== '契約中');
+
+  // 共通のテーブル表示用コンポーネント
+  const CustomerTable = ({ data, title, icon }: { data: Customer[], title: string, icon: string }) => (
+    <div className="glass-panel" style={{ marginBottom: '2.5rem', overflowX: 'auto' }}>
+      <h3 style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <span>{icon}</span> {title} ({data.length}件)
+      </h3>
+      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '900px' }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+            <th style={{ padding: '1rem', width: '60px' }}>ID</th>
+            <th style={{ padding: '1rem' }}>顧客名</th>
+            <th style={{ padding: '1rem' }}>担当者名</th>
+            <th style={{ padding: '1rem' }}>メールアドレス</th>
+            <th style={{ padding: '1rem' }}>電話番号</th>
+            <th style={{ padding: '1rem' }}>取引状況</th>
+            <th style={{ padding: '1rem' }}>契約種別</th> 
+            <th style={{ padding: '1rem', width: '120px' }}>登録日</th> {/* 👈 タイムゾーン表記なしの純粋な日付列 */}
+            <th style={{ padding: '1rem', textAlign: 'right', width: '140px' }}>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map(c => (
+            <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', fontSize: '0.9rem' }} className="table-row-hover">
+              <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{c.id}</td>
+              <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--primary)' }}>{c.name}</td>
+              <td style={{ padding: '1rem' }}>{c.customer_rep || '---'}</td>
+              <td style={{ padding: '1rem', color: 'var(--text-main)' }}>{c.email || '---'}</td>
+              <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{c.phone || '---'}</td>
+              <td style={{ padding: '1rem' }}>
+                <span style={{ 
+                  padding: '0.25rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600,
+                  background: c.status === '契約中' ? 'rgba(16, 185, 129, 0.15)' : c.status === '解約' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                  color: c.status === '契約中' ? '#34d399' : c.status === '解約' ? '#f87171' : '#fbbf24'
+                }}>
+                  {c.status}
+                </span>
+              </td>
+              <td style={{ padding: '1rem' }}>
+                <span style={{ 
+                  padding: '0.25rem 0.6rem', 
+                  borderRadius: '6px', 
+                  fontSize: '0.75rem', 
+                  fontWeight: 700,
+                  background: c.contract_type === '月定額' ? 'rgba(168, 85, 247, 0.15)' : c.contract_type === '年間契約' ? 'rgba(236, 72, 153, 0.15)' : c.contract_type === '単発' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255,255,255,0.05)',
+                  color: c.contract_type === '月定額' ? '#c084fc' : c.contract_type === '年間契約' ? '#f472b6' : c.contract_type === '単発' ? '#60a5fa' : 'var(--text-muted)' 
+                }}>
+                  {c.contract_type || '未定'}
+                </span>
+              </td>
+              {/* 👈 不要なタイムゾーン表記や記号を一切無くし、YYYY-MM-DD だけを綺麗に出力 */}
+              <td style={{ padding: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                {c.created_at ? c.created_at.substring(0, 10) : '---'}
+              </td>
+              <td style={{ padding: '1rem', textAlign: 'right' }}>
+                <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', marginRight: '0.5rem' }} onClick={() => handleEditClick(c)}>編集</button>
+                <button className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }} onClick={() => handleDelete(c.id)}>削除</button>
+              </td>
+            </tr>
+          ))}
+          {data.length === 0 && (
+            <tr>
+              <td colSpan={9} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>対象の顧客データがありません。</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+
   return (
     <div className="container" style={{ maxWidth: '100%' }}>
       <header style={{ marginBottom: '3rem' }}>
         <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>顧客マスタデータベース</h1>
-        <p style={{ color: 'var(--text-muted)' }}>取引状況ステータスおよび契約種別を完全に分離して管理します。</p>
+        <p style={{ color: 'var(--text-muted)' }}>取引状況ごとに表示を完全に分離し、各顧客の契約種別を詳細に可視化します。</p>
       </header>
 
       {/* 新規顧客登録フォーム */}
@@ -154,7 +227,6 @@ export default function CustomersPage() {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-            {/* 👈 【レイアウト復元】取引状況と現在の契約種別をきれいに横並びに分離 */}
             <div className="form-group">
               <label className="label">取引状況 (ステータス)</label>
               <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
@@ -185,65 +257,9 @@ export default function CustomersPage() {
         </form>
       </div>
 
-      {/* 顧客一覧テーブル */}
-      <div className="glass-panel" style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '900px' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              <th style={{ padding: '1rem', width: '60px' }}>ID</th>
-              <th style={{ padding: '1rem' }}>顧客名</th>
-              <th style={{ padding: '1rem' }}>担当者名</th>
-              <th style={{ padding: '1rem' }}>メールアドレス</th>
-              <th style={{ padding: '1rem' }}>電話番号</th>
-              {/* 👈 【表示復元】取引状況と契約種別を別々の独立した列として一覧に配置 */}
-              <th style={{ padding: '1rem' }}>取引状況</th>
-              <th style={{ padding: '1rem' }}>契約種別</th> 
-              <th style={{ padding: '1rem', textAlign: 'right' }}>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {customers.map(c => (
-              <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', fontSize: '0.9rem' }} className="table-row-hover">
-                <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{c.id}</td>
-                <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--primary)' }}>{c.name}</td>
-                <td style={{ padding: '1rem' }}>{c.customer_rep || '---'}</td>
-                <td style={{ padding: '1rem', color: 'var(--text-main)' }}>{c.email || '---'}</td>
-                <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{c.phone || '---'}</td>
-                <td style={{ padding: '1rem' }}>
-                  <span style={{ 
-                    padding: '0.25rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600,
-                    background: c.status === '契約中' ? 'rgba(16, 185, 129, 0.15)' : c.status === '解約' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                    color: c.status === '契約中' ? '#34d399' : c.status === '解約' ? '#f87171' : '#fbbf24'
-                  }}>
-                    {c.status}
-                  </span>
-                </td>
-                <td style={{ padding: '1rem' }}>
-                  <span style={{ 
-                    padding: '0.25rem 0.6rem', 
-                    borderRadius: '6px', 
-                    fontSize: '0.75rem', 
-                    fontWeight: 700,
-                    background: c.contract_type === '月定額' ? 'rgba(168, 85, 247, 0.15)' : c.contract_type === '年間契約' ? 'rgba(236, 72, 153, 0.15)' : c.contract_type === '単発' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255,255,255,0.05)',
-                    color: c.contract_type === '月定額' ? '#c084fc' : c.contract_type === '年間契約' ? '#f472b6' : c.contract_type === '単発' ? '#60a5fa' : 'var(--text-muted)' 
-                  }}>
-                    {c.contract_type || '未定'}
-                  </span>
-                </td>
-                <td style={{ padding: '1rem', textAlign: 'right' }}>
-                  <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', marginRight: '0.5rem' }} onClick={() => handleEditClick(c)}>編集</button>
-                  <button className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }} onClick={() => handleDelete(c.id)}>削除</button>
-                </td>
-              </tr>
-            ))}
-            {customers.length === 0 && (
-              <tr>
-                <td colSpan={8} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>登録された顧客がいません。</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {/* 👈 【大修正】「契約中」と「見込み・解約」で2つのテーブルを縦に並べて同時表示 */}
+      <CustomerTable data={activeCustomers} title="現在契約中の顧客マスタ" icon="🎉" />
+      <CustomerTable data={leadCustomers} title="検討中（見込み）および解約の顧客一覧" icon="🔍" />
 
       {/* 編集用モーダル */}
       {editingCustomer && (
