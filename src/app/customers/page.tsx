@@ -1,379 +1,296 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import Papa from 'papaparse';
 
 interface Customer {
   id: number;
   name: string;
-  phone: string;
+  company?: string;
   email?: string;
-  status: string;
-  customer_rep?: string;
-  address?: string;
-  position?: string;
-  postal_code?: string;
+  phone?: string;
+  status: string; // 検討中, 契約中, 解約
+  contract_type?: string; // 👈 【新設】単発, 月定額, 年間契約, 未定
+  notes?: string;
+  created_at?: string;
 }
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [company, setCompany] = useState('');
   const [email, setEmail] = useState('');
-  const [status, setStatus] = useState('見込み');
-  const [customerRep, setCustomerRep] = useState('');
-  const [address, setAddress] = useState('');
-  const [position, setPosition] = useState('');
-  const [postal_code, setPostalCode] = useState('');
-  
-  // ポップアップメッセージ用の状態管理
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [phone, setPhone] = useState('');
+  const [status, setStatus] = useState('検討中');
+  const [contractType, setContractType] = useState('未定'); // 👈 【新設】デフォルト値
+  const [notes, setNotes] = useState('');
 
-  // Edit states
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
-  const [editForm, setEditForm] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState<Partial<Customer>>({});
 
   useEffect(() => {
     fetchCustomers();
   }, []);
 
   const fetchCustomers = async () => {
-    const res = await fetch('/api/customers');
-    const data = await res.json();
-    setCustomers(data);
-  };
-
-  // 通知ポップアップを表示する関数
-  const showNotification = (message: string) => {
-    setToastMessage(message);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3000);
+    try {
+      const res = await fetch('/api/customers');
+      if (res.ok) {
+        setCustomers(await res.json());
+      }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch('/api/customers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, phone, email, status, customer_rep: customerRep, address, position, postal_code }),
-    });
-    if (res.ok) {
-      showNotification('🎉 顧客情報を新しく登録しました！');
-      setName('');
-      setPhone('');
-      setEmail('');
-      setCustomerRep('');
-      setAddress('');
-      setPosition('');
-      setPostalCode('');
-      fetchCustomers();
-    } else {
-      showNotification('❌ 登録に失敗しました。データベースのカラムを確認してください。');
+    if (!name) {
+      alert('担当者名（または顧客名）は必須です。');
+      return;
+    }
+
+    const payload = {
+      name,
+      company: company || null,
+      email: email || null,
+      phone: phone || null,
+      status,
+      contract_type: contractType, // 👈 【新設】APIへの送信
+      notes: notes || null
+    };
+
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        setName('');
+        setCompany('');
+        setEmail('');
+        setPhone('');
+        setStatus('検討中');
+        setContractType('未定'); // 👈 リセット
+        setNotes('');
+        fetchCustomers();
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  const handleExport = () => {
-    const csv = Papa.unparse(customers);
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', `customers_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async (results) => {
-        const res = await fetch('/api/customers/import', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(results.data),
-        });
-        if (res.ok) {
-          showNotification('🚀 CSVのインポートに成功しました！');
-          fetchCustomers();
-        } else {
-          showNotification('❌ インポートに失敗しました');
-        }
-      }
-    });
-  };
-
-  const startEdit = (customer: Customer) => {
+  const handleEditClick = (customer: Customer) => {
     setEditingCustomer(customer);
     setEditForm({ ...customer });
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editForm) return;
+    if (!editingCustomer) return;
 
-    const res = await fetch('/api/customers', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(editForm),
-    });
-
-    if (res.ok) {
-      showNotification('✅ 顧客情報を更新しました');
-      setEditingCustomer(null);
-      fetchCustomers();
-    } else {
-      showNotification('❌ 更新に失敗しました');
+    try {
+      const res = await fetch(`/api/customers?id=${editingCustomer.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm)
+      });
+      if (res.ok) {
+        setEditingCustomer(null);
+        fetchCustomers();
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`顧客「${name}」を削除しますか？\n※この操作は取り消せません。`)) return;
-    
-    const res = await fetch(`/api/customers?id=${id}`, { method: 'DELETE' });
-    if (res.ok) {
-      showNotification('🗑️ 顧客情報を削除しました');
-      fetchCustomers();
-    } else {
-      showNotification('❌ 削除に失敗しました');
+  const handleDelete = async (id: number) => {
+    if (!confirm('この顧客データを削除してもよろしいですか？（紐づく案件がある場合、表示に影響が出る可能性があります）')) return;
+    try {
+      const res = await fetch(`/api/customers?id=${id}`, { method: 'DELETE' });
+      if (res.ok) fetchCustomers();
+    } catch (err) {
+      console.error(err);
     }
   };
-
-  const activeCustomers = customers.filter(c => c.status === '契約中');
-  const otherCustomers = customers.filter(c => c.status !== '契約中');
-
-  const CustomerTable = ({ data, title, showGlobalActions = false }: { data: Customer[], title: string, showGlobalActions?: boolean }) => (
-    <div className="glass-panel" style={{ marginBottom: '2rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: 0 }}>
-          <span style={{ width: '8px', height: '1.5rem', background: title.includes('取引') ? 'var(--accent)' : 'var(--text-muted)', borderRadius: '4px' }}></span>
-          {title} ({data.length})
-        </h3>
-        {showGlobalActions && (
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className="btn btn-secondary" onClick={handleExport} style={{ fontSize: '0.8rem' }}>CSV出力</button>
-            <label className="btn btn-secondary" style={{ fontSize: '0.8rem', cursor: 'pointer' }}>
-              CSV取込
-              <input type="file" accept=".csv" style={{ display: 'none' }} onChange={handleImport} />
-            </label>
-          </div>
-        )}
-      </div>
-      <div className="table-wrapper">
-        <table className="data-table">
-        <thead>
-          <tr>
-            <th style={{ width: '60px' }}>ID</th>
-            <th>顧客名 / 担当者</th>
-            <th>電話番号 / メール</th>
-            <th>住所</th>
-            <th>ステータス</th>
-            <th style={{ width: '130px' }}>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((customer) => (
-            <tr key={customer.id}>
-              <td>{customer.id}</td>
-              <td>
-                <Link href={`/customers/${customer.id}`} style={{ fontWeight: 600, color: 'var(--primary)', textDecoration: 'none' }}>
-                  {customer.name}
-                </Link>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  👤 {customer.customer_rep || '担当者未設定'}
-                  {customer.position && ` (${customer.position})`}
-                </div>
-              </td>
-              <td>
-                <div style={{ fontSize: '0.875rem' }}>{customer.phone || '-'}</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--primary)' }}>{customer.email || '-'}</div>
-              </td>
-              <td>
-                {customer.postal_code && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>〒{customer.postal_code}</div>}
-                <div style={{ fontSize: '0.8rem', maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={customer.address}>
-                  {customer.address || '-'}
-                </div>
-              </td>
-              <td>
-                <span style={{ 
-                  padding: '0.25rem 0.75rem', 
-                  borderRadius: '20px', 
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  background: customer.status === '契約中' ? 'rgba(16, 185, 129, 0.2)' : 
-                              customer.status === '休止中' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(59, 130, 246, 0.2)',
-                  color: customer.status === '契約中' ? '#10b981' : 
-                        customer.status === '休止中' ? '#ef4444' : '#3b82f6'
-                }}>
-                  {customer.status}
-                </span>
-              </td>
-              <td>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }} onClick={() => startEdit(customer)}>修正</button>
-                  <button className="btn btn-danger" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }} onClick={() => handleDelete(customer.id, customer.name)}>削除</button>
-                </div>
-              </td>
-            </tr>
-          ))}
-          {data.length === 0 && (
-            <tr>
-              <td colSpan={6} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>対象の顧客はいません</td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-    </div>
-  );
 
   return (
-    <div className="container" style={{ maxWidth: '1400px', position: 'relative' }}>
-      
-      {/* 登録完了ポップアップ（トースト） */}
-      {toastMessage && (
-        <div style={{
-          position: 'fixed', top: '20px', right: '20px',
-          background: 'rgba(30, 41, 59, 0.9)', color: '#fff',
-          padding: '1rem 2rem', borderRadius: '8px',
-          boxShadow: '0 10px 25px rgba(0,0,0,0.3)', zIndex: 2000,
-          backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.1)',
-          fontWeight: 600
-        }}>
-          {toastMessage}
-        </div>
-      )}
+    <div className="container" style={{ maxWidth: '100%' }}>
+      <header style={{ marginBottom: '3rem' }}>
+        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>顧客マスタデータベース</h1>
+        <p style={{ color: 'var(--text-muted)' }}>取引状況ステータスおよび契約種別を分けて、詳細な顧客ポートフォリオを管理します。</p>
+      </header>
 
-      <h1 style={{ marginBottom: '2rem' }}>顧客マスタ管理</h1>
+      {/* 新規顧客登録フォーム */}
+      <div className="glass-panel" style={{ marginBottom: '3rem', padding: '2rem' }}>
+        <h3 style={{ marginBottom: '1.5rem' }}>👥 新規顧客を登録</h3>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
+            <div className="form-group">
+              <label className="label">顧客名 / 担当者名 *</label>
+              <input className="input" placeholder="例: 山田 太郎" value={name} onChange={(e) => setName(e.target.value)} required />
+            </div>
+            <div className="form-group">
+              <label className="label">企業・組織名 (任意)</label>
+              <input className="input" placeholder="例: 株式会社インテグレーション" value={company} onChange={(e) => setCompany(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="label">メールアドレス</label>
+              <input type="email" className="input" placeholder="example@domain.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label className="label">電話番号</label>
+              <input type="tel" className="input" placeholder="03-XXXX-XXXX" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </div>
+          </div>
 
-      <div className="glass-panel" style={{ marginBottom: '2rem' }}>
-        <h3 style={{ marginBottom: '1.5rem' }}>新規顧客登録</h3>
-        <form onSubmit={handleSubmit}>
-          <div className="grid-responsive" style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr', marginBottom: '1.5rem' }}>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="label">顧客名 (会社名)</label>
-              <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="株式会社サンプル" required />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+            <div className="form-group">
+              <label className="label">取引状況 (ステータス)</label>
+              <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="検討中">検討中</option>
+                <option value="契約中">🎉 契約中</option>
+                <option value="解約">解約</option>
+              </select>
             </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="label">先方担当者名</label>
-              <input className="input" placeholder="◯◯ 様" value={customerRep} onChange={(e) => setCustomerRep(e.target.value)} />
-            </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="label">役職名</label>
-              <input className="input" placeholder="部長 など" value={position} onChange={(e) => setPosition(e.target.value)} />
-            </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="label">取引状況</label>
-              <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
-                <option value="見込み">見込み</option>
-                <option value="契約中">契約中</option>
-                <option value="休止中">休止中</option>
+            {/* 👈 【新設】登録フォームの契約種別 */}
+            <div className="form-group">
+              <label className="label">現在の契約種別</label>
+              <select className="input" value={contractType} onChange={(e) => setContractType(e.target.value)}>
+                <option value="未定">未定（検討中など）</option>
+                <option value="単発">単発案件</option>
+                <option value="月定額">月額定額案件 (リカーリング)</option>
+                <option value="年間契約">年間契約案件</option>
               </select>
             </div>
           </div>
 
-          <div className="grid-responsive" style={{ gridTemplateColumns: '1fr 2fr 1fr 1fr', marginBottom: '1.5rem' }}>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="label">郵便番号</label>
-              <input className="input" placeholder="150-0002" value={postal_code} onChange={(e) => setPostalCode(e.target.value)} />
-            </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="label">住所</label>
-              <input className="input" placeholder="東京都... (任意)" value={address} onChange={(e) => setAddress(e.target.value)} />
-            </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="label">電話番号</label>
-              <input className="input" placeholder="03-xxxx-xxxx" value={phone} onChange={(e) => setPhone(e.target.value)} />
-            </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="label">メールアドレス</label>
-              <input type="email" className="input" placeholder="example@domain.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
+          <div className="form-group">
+            <label className="label">顧客特記事項・契約メモ</label>
+            <textarea className="input" style={{ height: '80px', paddingTop: '0.5rem' }} placeholder="住所、商談時の要望、過去の経緯など" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
 
-          <div style={{ textAlign: 'right', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1.5rem' }}>
-            <button type="submit" className="btn btn-primary" style={{ padding: '0.8rem 3rem', fontSize: '1rem', boxShadow: '0 4px 15px rgba(59, 130, 246, 0.3)' }}>
-              ＋ 顧客を新規登録する
-            </button>
-          </div>
+          <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-start', padding: '0.75rem 2rem' }}>
+            👥 顧客データベースに登録
+          </button>
         </form>
       </div>
 
-      <CustomerTable data={activeCustomers} title="取引中の顧客（アクティブ）" showGlobalActions={true} />
-      <CustomerTable data={otherCustomers} title="見込み・休止中の顧客" />
+      {/* 顧客一覧テーブル */}
+      <div className="glass-panel" style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '900px' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              <th style={{ padding: '1rem', width: '60px' }}>ID</th>
+              <th style={{ padding: '1rem' }}>顧客・担当者名</th>
+              <th style={{ padding: '1rem' }}>企業・組織名</th>
+              <th style={{ padding: '1rem' }}>メールアドレス</th>
+              <th style={{ padding: '1rem' }}>電話番号</th>
+              <th style={{ padding: '1rem' }}>取引状況</th>
+              <th style={{ padding: '1rem' }}>契約種別</th> {/* 👈 【新設】一覧の列 */}
+              <th style={{ padding: '1rem', textAlign: 'right' }}>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {customers.map(c => (
+              <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', fontSize: '0.9rem' }} className="table-row-hover">
+                <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{c.id}</td>
+                <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--primary)' }}>{c.name}</td>
+                <td style={{ padding: '1rem' }}>{c.company || '---'}</td>
+                <td style={{ padding: '1rem', color: 'var(--text-main)' }}>{c.email || '---'}</td>
+                <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{c.phone || '---'}</td>
+                <td style={{ padding: '1rem' }}>
+                  <span style={{ 
+                    padding: '0.25rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600,
+                    background: c.status === '契約中' ? 'rgba(16, 185, 129, 0.15)' : c.status === '解約' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                    color: c.status === '契約中' ? '#34d399' : c.status === '解約' ? '#f87171' : '#fbbf24'
+                  }}>
+                    {c.status}
+                  </span>
+                </td>
+                {/* 👈 【新設】一覧のバッジ表示 */}
+                <td style={{ padding: '1rem' }}>
+                  <span style={{ 
+                    padding: '0.25rem 0.6rem', 
+                    borderRadius: '6px', 
+                    fontSize: '0.75rem', 
+                    fontWeight: 700,
+                    background: c.contract_type === '月定額' ? 'rgba(168, 85, 247, 0.15)' : c.contract_type === '年間契約' ? 'rgba(236, 72, 153, 0.15)' : c.contract_type === '単発' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255,255,255,0.05)',
+                    color: c.contract_type === '月定額' ? '#c084fc' : c.contract_type === '年間契約' ? '#f472b6' : c.contract_type === '単発' ? '#60a5fa' : 'var(--text-muted)' 
+                  }}>
+                    {c.contract_type || '未定'}
+                  </span>
+                </td>
+                <td style={{ padding: '1rem', textAlign: 'right' }}>
+                  <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', marginRight: '0.5rem' }} onClick={() => handleEditClick(c)}>編集</button>
+                  <button className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }} onClick={() => handleDelete(c.id)}>削除</button>
+                </td>
+              </tr>
+            ))}
+            {customers.length === 0 && (
+              <tr>
+                <td colSpan={8} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>登録された顧客がいません。</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
-      {/* 修正用ポップアップ（見切れ・スクロール対策のみ適用） */}
-      {editingCustomer && editForm && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-          background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1000, backdropFilter: 'blur(4px)', padding: '20px'
-        }}>
-          <div className="glass-panel" style={{ 
-            width: '90%', maxWidth: '500px', 
-            maxHeight: 'calc(100vh - 40px)', // 👈 画面の高さに強制的に収める
-            display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden'
-          }}>
-            {/* 固定ヘッダー */}
-            <div style={{ padding: '1.5rem 2rem 1rem 2rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-              <h3 style={{ margin: 0 }}>顧客情報の修正: ID {editingCustomer.id}</h3>
-            </div>
+      {/* 編集用モーダル */}
+      {editingCustomer && (
+        <div style={{ position: 'fixed', top:0, left:0, width:'100vw', height:'100vh', background:'rgba(0,0,0,0.6)', display:'flex', alignItems:'center', justifyContent:'center', zIndex: 2000, padding: '1rem' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '600px', padding: '2rem', background: 'var(--bg-dark)', border: '1px solid var(--border)' }}>
+            <h3 style={{ marginBottom: '1.5rem' }}>📝 顧客情報を編集</h3>
+            <form onSubmit={handleUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="label">顧客・担当者名</label>
+                  <input className="input" value={editForm.name || ''} onChange={(e) => setEditForm({...editForm, name: e.target.value})} required />
+                </div>
+                <div className="form-group">
+                  <label className="label">企業・組織名</label>
+                  <input className="input" value={editForm.company || ''} onChange={(e) => setEditForm({...editForm, company: e.target.value})} />
+                </div>
+              </div>
 
-            {/* はみ出た場合にスクロールするフォーム部分 */}
-            <form onSubmit={handleUpdate} style={{ 
-              padding: '1rem 2rem 2rem 2rem', 
-              overflowY: 'auto', // 👈 縦に長い場合はここだけがスクロールする
-              flex: 1,
-              display: 'flex', flexDirection: 'column', gap: '1rem'
-            }}>
-              <div className="form-group" style={{ marginBottom: '0.5rem' }}>
-                <label className="label">顧客名 (会社名)</label>
-                <input className="input" value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '0.5rem' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="label">先方担当者名</label>
-                  <input className="input" value={editForm.customer_rep || ''} onChange={(e) => setEditForm({...editForm, customer_rep: e.target.value})} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="label">メールアドレス</label>
+                  <input type="email" className="input" value={editForm.email || ''} onChange={(e) => setEditForm({...editForm, email: e.target.value})} />
                 </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="label">役職名</label>
-                  <input className="input" value={editForm.position || ''} onChange={(e) => setEditForm({...editForm, position: e.target.value})} />
+                <div className="form-group">
+                  <label className="label">電話番号</label>
+                  <input type="tel" className="input" value={editForm.phone || ''} onChange={(e) => setEditForm({...editForm, phone: e.target.value})} />
                 </div>
               </div>
-              <div className="form-group" style={{ marginBottom: '0.5rem' }}>
-                <label className="label">電話番号</label>
-                <input className="input" value={editForm.phone} onChange={(e) => setEditForm({...editForm, phone: e.target.value})} />
-              </div>
-              <div className="form-group" style={{ marginBottom: '0.5rem' }}>
-                <label className="label">メールアドレス</label>
-                <input type="email" className="input" value={editForm.email || ''} onChange={(e) => setEditForm({...editForm, email: e.target.value})} />
-              </div>
-              <div className="form-group" style={{ marginBottom: '0.5rem' }}>
-                <label className="label">取引状況</label>
-                <select className="select" value={editForm.status} onChange={(e) => setEditForm({...editForm, status: e.target.value})}>
-                  <option value="見込み">見込み</option>
-                  <option value="契約中">契約中</option>
-                  <option value="休止中">休止中</option>
-                </select>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem', marginBottom: '1.5rem' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="label">郵便番号</label>
-                  <input className="input" value={editForm.postal_code || ''} onChange={(e) => setEditForm({...editForm, postal_code: e.target.value})} />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="label">取引状況</label>
+                  <select className="input" value={editForm.status || '検討中'} onChange={(e) => setEditForm({...editForm, status: e.target.value})}>
+                    <option value="検討中">検討中</option>
+                    <option value="契約中">契約中</option>
+                    <option value="解約">解約</option>
+                  </select>
                 </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="label">住所</label>
-                  <input className="input" value={editForm.address || ''} onChange={(e) => setEditForm({...editForm, address: e.target.value})} />
+                {/* 👈 【新設】編集フォームの契約種別 */}
+                <div className="form-group">
+                  <label className="label">現在の契約種別</label>
+                  <select className="input" value={editForm.contract_type || '未定'} onChange={(e) => setEditForm({...editForm, contract_type: e.target.value})}>
+                    <option value="未定">未定（検討中など）</option>
+                    <option value="単発">単発案件</option>
+                    <option value="月定額">月額定額案件</option>
+                    <option value="年間契約">年間契約案件</option>
+                  </select>
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label className="label">特記事項・契約メモ</label>
+                <textarea className="input" style={{ height: '80px', paddingTop: '0.5rem' }} value={editForm.notes || ''} onChange={(e) => setEditForm({...editForm, notes: e.target.value})} />
               </div>
               
-              {/* ボタン位置（常に見える位置に収まります） */}
-              <div style={{ display: 'flex', gap: '1rem', marginTop: 'auto' }}>
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
                 <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>更新する</button>
                 <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setEditingCustomer(null)}>キャンセル</button>
               </div>
