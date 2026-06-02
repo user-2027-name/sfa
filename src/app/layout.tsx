@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { SessionProvider, signOut, useSession } from 'next-auth/react';
+import { Toaster } from 'react-hot-toast'; // 👈 トーストライブラリをインポート
 import './globals.css';
 
 export default function RootLayout({
@@ -37,15 +38,18 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
       </head>
       <body>
+        {/* 👈 アプリ全体でトーストポップアップを表示するための受け皿を設置（指示以外のデザイン変更はナシ） */}
+        <Toaster position="top-right" reverseOrder={false} />
+
         <div className="app-layout">
           {!isLoginPage && (
             <aside 
               className="sidebar"
               style={{
-                height: '100vh',        // 👈 サイドバーの全体の高さを画面の縦幅ぴったりに固定
-                display: 'flex',        // 👈 内部の要素を縦並びに制御
+                height: '100vh',
+                display: 'flex',
                 flexDirection: 'column',
-                overflowY: 'auto'       // 👈 画面が狭いときはサイドバー単体でスクロール可能にする
+                overflowY: 'auto'
               }}
             >
             <h2 style={{ marginBottom: '2rem', fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)' }}>SFA Integration</h2>
@@ -81,7 +85,7 @@ export default function RootLayout({
                 {theme === 'dark' ? '☀️ ライトモードへ' : '🌙 ダークモードへ'}
               </button>
             </div>
-            <div style={{ marginTop: '1rem', paddingBottom: '1rem' }}> {/* 👈 最下部の余白を少し確保 */}
+            <div style={{ marginTop: '1rem', paddingBottom: '1rem' }}>
               <button 
                 onClick={() => signOut({ callbackUrl: '/login' })}
                 style={{ 
