@@ -39,7 +39,15 @@ export default function RootLayout({
       <body>
         <div className="app-layout">
           {!isLoginPage && (
-            <aside className="sidebar">
+            <aside 
+              className="sidebar"
+              style={{
+                height: '100vh',        // 👈 サイドバーの全体の高さを画面の縦幅ぴったりに固定
+                display: 'flex',        // 👈 内部の要素を縦並びに制御
+                flexDirection: 'column',
+                overflowY: 'auto'       // 👈 画面が狭いときはサイドバー単体でスクロール可能にする
+              }}
+            >
             <h2 style={{ marginBottom: '2rem', fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)' }}>SFA Integration</h2>
             <nav className="sidebar-nav">
               <Link href="/" className="nav-link">📊 ダッシュボード</Link>
@@ -73,7 +81,7 @@ export default function RootLayout({
                 {theme === 'dark' ? '☀️ ライトモードへ' : '🌙 ダークモードへ'}
               </button>
             </div>
-            <div style={{ marginTop: '1rem' }}>
+            <div style={{ marginTop: '1rem', paddingBottom: '1rem' }}> {/* 👈 最下部の余白を少し確保 */}
               <button 
                 onClick={() => signOut({ callbackUrl: '/login' })}
                 style={{ 
