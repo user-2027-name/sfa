@@ -36,12 +36,10 @@ export default function Home() {
       const customers = await cRes.json();
       const employees = await eRes.json();
 
-      // 👈 【修正】新しい集計ロジック（受注より右：受注・制作・完了 を確定金額とする）
       const totalRev = projects
         .filter((p: any) => p.status === '受注' || p.status === '制作' || p.status === '完了')
         .reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0);
 
-      // 👈 【修正】新しい集計ロジック（商談より左：テレアポ・商談 を見込み金額とする）
       const totalFore = projects
         .filter((p: any) => p.status === 'テレアポ' || p.status === '商談')
         .reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0);
@@ -56,13 +54,12 @@ export default function Home() {
 
       const monthlyMap: Record<string, { confirmed: number, forecast: number }> = {};
       projects.forEach((p: any) => {
-        const month = p.order_date.substring(0, 7);
+        const month = p.order_date ? p.order_date.substring(0, 7) : new Date().toISOString().substring(0, 7);
         if (!monthlyMap[month]) {
           monthlyMap[month] = { confirmed: 0, forecast: 0 };
         }
         
         const projectAmount = Number(p.amount || 0);
-        // 👈 【修正】月別グラフの集計条件も上記のルールと完全に一致させます
         if (p.status === '受注' || p.status === '制作' || p.status === '完了') {
           monthlyMap[month].confirmed += projectAmount;
         } else if (p.status === 'テレアポ' || p.status === '商談') {
@@ -182,7 +179,8 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="grid-responsive desktop-stats-row" style={{ gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: '3rem', gap: '1rem' }}>
+      {/* サマリーカード行 */}
+      <div className="grid-responsive desktop-stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: '3rem', gap: '1rem' }}>
         <div className="glass-panel" style={{ borderTop: '4px solid var(--primary)' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>累計成約額（確定）</p>
           <h2 style={{ fontSize: '1.6rem' }}>¥{(stats.totalRevenue / 10000).toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>万</span></h2>
@@ -205,8 +203,8 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="grid-responsive desktop-charts-row" style={{ gridTemplateColumns: '2fr 1fr', marginBottom: '2rem' }}>
-        {/* Sales visualization */}
+      {/* グラフとステータス分布行 */}
+      <div className="grid-responsive desktop-charts-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', marginBottom: '2rem', gap: '2rem' }}>
         <div className="glass-panel" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '1rem', flexWrap: 'wrap' }}>
             <h3 style={{ margin: 0 }}>売上推移（直近6ヶ月）</h3>
@@ -261,7 +259,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Status Distribution */}
         <div className="glass-panel">
           <h3 style={{ marginBottom: '1.5rem' }}>案件ステータス分布</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -269,11 +266,11 @@ export default function Home() {
               <div key={i}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.5rem' }}>
                   <span style={{ fontWeight: 500 }}>{s.status}</span>
-                  <span style={{ color: 'var(--text-muted)' }}>{s.count} ({Math.round(s.count/stats.projects*100)}%)</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{s.count} ({Math.round(s.count/(stats.projects || 1)*100)}%)</span>
                 </div>
                 <div style={{ height: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '5px' }}>
                   <div style={{ 
-                    width: `${(s.count / stats.projects) * 100}%`, 
+                    width: `${(s.count / (stats.projects || 1)) * 100}%`, 
                     height: '100%', 
                     background: s.status === '完了' ? '#3b82f6' : s.status === '受注' ? '#10b981' : s.status === '失注' ? '#ef4444' : '#f59e0b',
                     borderRadius: '5px',
@@ -286,99 +283,109 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="grid-responsive desktop-funnel-row" style={{ gridTemplateColumns: 'minmax(0, 1fr) 2fr', marginBottom: '2rem' }}>
-        <div className="glass-panel">
-          <h3 style={{ marginBottom: '1.5rem' }}>セールスファンネル（歩留まり）</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem', alignItems: 'center' }}>
+      {/* 👈 【大修正】ファンネル、緊急対応、担当者別進捗状況を、黄金比率の 1fr 1fr 1fr 3カラム横並びに統合！ */}
+      <div className="grid-responsive desktop-3column-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2rem', marginBottom: '2rem' }}>
+        
+        {/* 1列目: セールスファンネル */}
+        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <h3 style={{ marginBottom: '1.5rem' }}>セールスファンネル</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', alignItems: 'center', flex: 1, justifyContent: 'center' }}>
             <div style={{ width: '100%', textAlign: 'center' }}>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>全リード</div>
-              <div style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '6px', border: '1px solid var(--primary)', fontSize: '0.9rem', fontWeight: 700 }}>
+              <div style={{ padding: '0.4rem', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '6px', border: '1px solid var(--primary)', fontSize: '0.85rem', fontWeight: 700 }}>
                 {funnel.tele} 件
               </div>
             </div>
             
-            <div style={{ fontSize: '0.75rem', color: 'var(--primary)' }}>⬇ {funnel.tele > 0 ? Math.round((funnel.negotiation / funnel.tele) * 100) : 0}%</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--primary)', lineHeight: 1 }}>⬇ {funnel.tele > 0 ? Math.round((funnel.negotiation / funnel.tele) * 100) : 0}%</div>
             
             <div style={{ width: '85%', textAlign: 'center' }}>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>商談化</div>
-              <div style={{ padding: '0.5rem', background: 'rgba(139, 92, 246, 0.1)', borderRadius: '6px', border: '1px solid #8b5cf6', fontSize: '0.9rem', fontWeight: 700 }}>
+              <div style={{ padding: '0.4rem', background: 'rgba(139, 92, 246, 0.1)', borderRadius: '6px', border: '1px solid #8b5cf6', fontSize: '0.85rem', fontWeight: 700 }}>
                 {funnel.negotiation} 件
               </div>
             </div>
 
-            <div style={{ fontSize: '0.75rem', color: '#8b5cf6' }}>⬇ {funnel.negotiation > 0 ? Math.round((funnel.order / funnel.negotiation) * 100) : 0}%</div>
+            <div style={{ fontSize: '0.7rem', color: '#8b5cf6', lineHeight: 1 }}>⬇ {funnel.negotiation > 0 ? Math.round((funnel.order / funnel.negotiation) * 100) : 0}%</div>
 
             <div style={{ width: '70%', textAlign: 'center' }}>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>受注</div>
-              <div style={{ padding: '0.5rem', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '6px', border: '1px solid #10b981', fontSize: '0.9rem', fontWeight: 700 }}>
+              <div style={{ padding: '0.4rem', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '6px', border: '1px solid #10b981', fontSize: '0.85rem', fontWeight: 700 }}>
                 {funnel.order} 件
               </div>
             </div>
             
-            <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', fontWeight: 600 }}>
+            <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', fontWeight: 600, textAlign: 'center' }}>
               総合成約率: <span style={{ color: 'var(--accent)' }}>{funnel.tele > 0 ? ((funnel.order / funnel.tele) * 100).toFixed(1) : 0}%</span>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="grid-responsive desktop-bottom-row" style={{ gridTemplateColumns: '1fr 1fr' }}>
-        <div className="glass-panel">
+        {/* 2列目: 緊急対応・遅延アラート */}
+        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span style={{ color: 'var(--danger)' }}>⚡</span> 緊急対応・遅延
           </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', flex: 1, justifyContent: alerts.length === 0 ? 'center' : 'flex-start' }}>
             {alerts.slice(0, 4).map((alert, idx) => (
-              <div key={idx} style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.1)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-                <div>
-                  <p style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.2rem' }}>{alert.projectName}</p>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--danger)' }}>{alert.taskName} が期限切れ ({alert.dueDate})</p>
+              <div key={idx} style={{ padding: '0.75rem', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.1)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <p style={{ fontWeight: 600, fontSize: '0.8rem', marginBottom: '0.1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{alert.projectName}</p>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--danger)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{alert.taskName} 遅延 ({alert.dueDate ? alert.dueDate.substring(5,10) : ''})</p>
                 </div>
-                <Link href={`/projects/${alert.projectId}`} className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.70rem', whiteSpace: 'nowrap' }}>工程へ</Link>
+                <Link href={`/projects/${alert.projectId}`} className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.65rem', whiteSpace: 'nowrap' }}>工程へ</Link>
               </div>
             ))}
-            {alerts.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>全ての工程が順調です ✨</p>}
+            {alerts.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1rem', margin: 0, fontSize: '0.85rem' }}>全ての工程が順調です ✨</p>}
           </div>
         </div>
 
-        <div className="glass-panel">
+        {/* 3列目: 担当者別 進行案件数 */}
+        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ marginBottom: '1.5rem' }}>担当者別 進行案件数</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {repWorkload.slice(0, 10).map((rw, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', borderLeft: rw.count >= 8 ? '4px solid #ef4444' : rw.count >= 5 ? '4px solid #f59e0b' : '4px solid transparent' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, overflowY: 'auto', maxHeight: '290px' }}>
+            {repWorkload.slice(0, 4).map((rw, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem', background: 'rgba(255,255,255,0.01)', borderRadius: '10px', borderLeft: rw.count >= 8 ? '4px solid #ef4444' : rw.count >= 5 ? '4px solid #f59e0b' : '4px solid transparent' }}>
                 <div style={{ 
-                  width: '40px', height: '40px', flexShrink: 0,
+                  width: '28px', height: '28px', flexShrink: 0,
                   background: rw.count >= 8 ? '#ef4444' : rw.count >= 5 ? '#f59e0b' : 'var(--primary)', 
-                  borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff' 
+                  borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 800, color: '#fff' 
                 }}>
                   {i + 1}
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {rw.name}
                     {rw.count >= 8 ? <span>💀</span> : rw.count >= 5 ? <span>⚠️</span> : null}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: rw.count >= 8 ? '#ef4444' : rw.count >= 5 ? '#f59e0b' : 'var(--text-muted)', fontWeight: rw.count >= 5 ? 700 : 400 }}>
-                    {rw.count} 案件を担当中
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                    {rw.count} 案件担当中
                   </div>
                 </div>
                 <div style={{ 
-                  padding: '0.25rem 0.75rem', flexShrink: 0,
-                  background: rw.count >= 8 ? 'rgba(239, 68, 68, 0.2)' : rw.count >= 5 ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.05)', 
+                  padding: '0.1rem 0.5rem', flexShrink: 0,
+                  background: rw.count >= 8 ? 'rgba(239, 68, 68, 0.15)' : rw.count >= 5 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255, 255, 255, 0.05)', 
                   color: rw.count >= 8 ? '#ef4444' : rw.count >= 5 ? '#f59e0b' : 'inherit',
-                  borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700 
+                  borderRadius: '20px', fontSize: '0.75rem', fontWeight: 700 
                 }}>
                   {rw.count}
                 </div>
               </div>
             ))}
+            {repWorkload.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1rem', margin: 0, fontSize: '0.85rem' }}>現在稼働中の担当者はいません。</p>}
           </div>
         </div>
+
       </div>
 
       <style jsx global>{`
+        @media (max-width: 992px) {
+          .desktop-3column-row {
+            grid-template-columns: 1fr !important;
+          }
+        }
         @media (max-width: 768px) {
-          header, .desktop-stats-row, .desktop-charts-row, .desktop-funnel-row, .desktop-bottom-row {
+          header, .desktop-stats-row, .desktop-charts-row {
             grid-template-columns: 1fr !important;
           }
           header {
