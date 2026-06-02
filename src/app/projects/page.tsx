@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Papa from 'papaparse';
+import { toast } from 'react-hot-toast'; // 👈 共通トースト用ライブラリをインポート
 
 interface Employee {
   id: number;
@@ -128,7 +129,7 @@ export default function ProjectsPage() {
         customer_id: customerId || null,
         contract_type: contractType,
         status,
-        amount,
+        amount: amount === '' ? 0 : amount,
         order_date: orderDate,
         deadline,
         sales_rep_id: salesRepId || null,
@@ -143,7 +144,7 @@ export default function ProjectsPage() {
       }),
     });
     if (res.ok) {
-      alert('登録しました');
+      toast.success('案件を新しく登録しました！'); // 👈 alert から共通トーストに変更
       setName('');
       setCustomerId('');
       setCustomerSearch('');
@@ -156,9 +157,10 @@ export default function ProjectsPage() {
       setProductionWebhook('');
       setNotes('');
       setSharedDriveUrl('');
-      // After successfully submitting, re-apply the default setting
       fetchSettings();
       fetchProjects();
+    } else {
+      toast.error('案件の登録に失敗しました');
     }
   };
 
@@ -187,17 +189,16 @@ export default function ProjectsPage() {
           body: JSON.stringify(results.data),
         });
         if (res.ok) {
-          alert('インポート成功');
+          toast.success('インポートに成功しました！'); // 👈 alert から共通トーストに変更
           fetchProjects();
         } else {
-          alert('インポートに失敗しました');
+          toast.error('インポートに失敗しました');
         }
       }
     });
   };
 
   const startEdit = (project: any) => {
-    // Ensure the id is explicitly passed into the edit form state
     setEditingProject(project);
     setEditForm({ 
       ...project,
@@ -208,11 +209,10 @@ export default function ProjectsPage() {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editForm || !editForm.id) {
-      alert('エラー: 更新対象の案件IDが見つかりません');
+      toast.error('エラー: 更新対象の案件IDが見つかりません');
       return;
     }
 
-    // Check for unfinished tasks if status is being changed to '完了'
     if (editForm.status === '完了' && editingProject?.status !== '完了') {
       const tRes = await fetch(`/api/tasks?projectId=${encodeURIComponent(editForm.id)}`);
       const tasks = await tRes.json();
@@ -231,11 +231,12 @@ export default function ProjectsPage() {
     });
 
     if (res.ok) {
+      toast.success('案件情報を更新しました'); // 👈 モーダル更新成功時もトーストに変更
       setEditingProject(null);
       fetchProjects();
     } else {
       const errorData = await res.json();
-      alert(`更新に失敗しました: ${errorData.details || '不明なエラー'}`);
+      toast.error(`更新に失敗しました: ${errorData.details || '不明なエラー'}`);
     }
   };
 
@@ -260,13 +261,13 @@ export default function ProjectsPage() {
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`案件「${name}」を削除しますか？\n付随するタスク工程もすべて削除されます。`)) return;
     
-    // Use encodeURIComponent to safely handle IDs with special characters
     const res = await fetch(`/api/projects?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
     if (res.ok) {
+      toast.success('案件を削除しました');
       fetchProjects();
     } else {
       const errorData = await res.json();
-      alert(`削除に失敗しました: ${errorData.details || '不明なエラー'}`);
+      toast.error(`削除に失敗しました: ${errorData.details || '不明なエラー'}`);
     }
   };
 
@@ -321,14 +322,12 @@ export default function ProjectsPage() {
                   <Link href={`/projects/${project.id}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>
                     {project.id}
                   </Link>
-                  {/* Risk Badge */}
                   {project.status !== '完了' && project.status !== '失注' && (
                     (() => {
                       const today = new Date().toISOString().split('T')[0];
                       const isRisk = project.deadline && project.deadline <= today;
                       if (isRisk) return <span style={{ marginLeft: '0.5rem', padding: '0.1rem 0.4rem', background: 'var(--danger)', color: 'white', fontSize: '0.65rem', borderRadius: '4px', fontWeight: 800 }}>納期遅延</span>;
                       
-                      // Example predictive logic: deadline is within 3 days
                       const threeDaysLater = new Date();
                       threeDaysLater.setDate(threeDaysLater.getDate() + 3);
                       const riskDate = threeDaysLater.toISOString().split('T')[0];
@@ -404,7 +403,7 @@ export default function ProjectsPage() {
           ))}
           {data.length === 0 && (
             <tr>
-              <td colSpan={7} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>対象の案件はありません</td>
+              <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>対象の案件はありません</td>
             </tr>
           )}
         </tbody>
@@ -494,13 +493,22 @@ export default function ProjectsPage() {
           </div>
 
           <div className="form-group">
-            <label className="label">見積額（税込）</label>
+            <label className="label">見積額（税込）</label> {/* 👈 ラベルの変更 */}
             <input 
-              type="number" 
+              type="text" // 👈 先頭0を排除するため、一度text型として受ける仕様へ修正
               className="input" 
               placeholder="0" 
               value={amount} 
-              onChange={(e) => setAmount(e.target.value === '' ? '' : Number(e.target.value))} 
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setAmount('');
+                } else {
+                  // 👈 数字以外をカットし、かつ先頭に連続する0を排除する入力仕様修正
+                  const sanitized = val.replace(/\D/g, '').replace(/^0+/, '');
+                  setAmount(sanitized === '' ? 0 : Number(sanitized));
+                }
+              }} 
             />
           </div>
           <div className="form-group">
@@ -508,7 +516,7 @@ export default function ProjectsPage() {
             <input type="date" className="input" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
           </div>
           <div className="form-group">
-            <label className="label">商談予定日 📅</label>
+            <label className="label">商談予定日 📅</label> {/* 👈 項目追加 */}
             <input type="date" className="input" value={discussionDate} onChange={(e) => setDiscussionDate(e.target.value)} />
           </div>
           <div className="form-group" style={{ visibility: 'hidden' }}>
@@ -615,7 +623,7 @@ export default function ProjectsPage() {
                   body: JSON.stringify({ key: 'shared_webhook_url', value: globalWebhookUrl })
                 });
                 if (res.ok) {
-                  alert('共通Webhook設定を保存しました');
+                  toast.success('共通Webhook設定を保存しました'); // 👈 トースト通知へ変更
                   fetchSettings();
                 }
               }}
@@ -699,17 +707,26 @@ export default function ProjectsPage() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
-                  <label className="label">見積額（税込）</label>
+                  <label className="label">見積額（税込）</label> {/* 👈 ラベルの変更 */}
                   <input 
-                    type="number" 
+                    type="text" // 👈 修正用モーダルでも先頭0を排除するため、text型で受ける
                     className="input" 
                     placeholder="0"
                     value={editForm.amount === null || editForm.amount === undefined ? '' : editForm.amount} 
-                    onChange={(e) => setEditForm({...editForm, amount: e.target.value === '' ? '' : Number(e.target.value)})} 
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setEditForm({...editForm, amount: ''});
+                      } else {
+                        // 👈 修正用モーダルでも先頭0を排除する入力仕様修正
+                        const sanitized = val.replace(/\D/g, '').replace(/^0+/, '');
+                        setEditForm({...editForm, amount: sanitized === '' ? 0 : Number(sanitized)});
+                      }
+                    }} 
                   />
                 </div>
                 <div className="form-group">
-                  <label className="label">商談予定日</label>
+                  <label className="label">商談予定日 📅</label> {/* 👈 項目追加 */}
                   <input 
                     type="date" 
                     className="input" 
