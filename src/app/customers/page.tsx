@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { toast } from 'react-hot-toast'; // 👈 トースト通知を100%復活
 
 interface Customer {
   id: number;
@@ -23,6 +24,10 @@ export default function CustomersPage() {
   const [status, setStatus] = useState('検討中');
   const [contractType, setContractType] = useState('未定'); 
   const [address, setAddress] = useState(''); 
+
+  // 👈 【新設】連打防止用のローディング管理状態
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [editForm, setEditForm] = useState<Partial<Customer>>({});
@@ -49,6 +54,8 @@ export default function CustomersPage() {
       return;
     }
 
+    setIsSubmitting(true); // 👈 登録処理開始（ボタンをロック）
+
     const payload = {
       name,
       customer_rep: customerRep || null,
@@ -66,6 +73,7 @@ export default function CustomersPage() {
         body: JSON.stringify(payload)
       });
       if (res.ok) {
+        toast.success('顧客を新しく登録しました！', { position: 'top-center' }); // 👈 トースト発火
         setName('');
         setCustomerRep('');
         setEmail('');
@@ -73,10 +81,15 @@ export default function CustomersPage() {
         setStatus('検討中');
         setContractType('未定'); 
         setAddress('');
-        fetchCustomers();
+        await fetchCustomers();
+      } else {
+        toast.error('登録に失敗しました', { position: 'top-center' });
       }
     } catch (err) {
       console.error(err);
+      toast.error('通信エラーが発生しました', { position: 'top-center' });
+    } finally {
+      setIsSubmitting(false); // 👈 処理終了（ボタンロック解除）
     }
   };
 
@@ -88,6 +101,8 @@ export default function CustomersPage() {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCustomer) return;
+
+    setIsUpdating(true); // 👈 更新処理開始（ボタンをロック）
 
     try {
       const res = await fetch('/api/customers', {
@@ -105,41 +120,44 @@ export default function CustomersPage() {
         })
       });
       if (res.ok) {
+        toast.success('顧客情報を更新しました', { position: 'top-center' }); // 👈 トースト発火
         setEditingCustomer(null);
-        fetchCustomers();
+        await fetchCustomers();
+      } else {
+        toast.error('更新に失敗しました', { position: 'top-center' });
       }
     } catch (err) {
       console.error(err);
+      toast.error('通信エラーが発生しました', { position: 'top-center' });
+    } finally {
+      setIsUpdating(false); // 👈 処理終了（ボタンロック解除）
     }
   };
 
-  // 👈 【大修正】安全な削除バリデーション処理
   const handleDelete = async (id: number, customerName: string) => {
     try {
-      // 1. 案件APIに問い合わせて、この顧客に紐づく案件があるか事前に調査
       const res = await fetch(`/api/projects?customerId=${id}`);
       if (!res.ok) throw new Error('案件データの確認に失敗しました');
       
       const relatedProjects = await res.json();
       
-      // 2. 案件が1件でも残っていたらポップアップを出して処理をブロック
       if (relatedProjects && relatedProjects.length > 0) {
         alert(`⚠️ 削除できません\n\n顧客「${customerName}」には、まだ紐づいている案件が ${relatedProjects.length} 件残っています。\n先に「案件管理」画面から対象の案件を削除するか、所属顧客を変更してください。`);
         return;
       }
 
-      // 3. 案件がゼロのときだけ、最終確認のポップアップを出す
       if (!confirm(`顧客「${customerName}」を削除してもよろしいですか？`)) return;
 
       const deleteRes = await fetch(`/api/customers?id=${id}`, { method: 'DELETE' });
       if (deleteRes.ok) {
+        toast.success(`顧客「${customerName}」を削除しました`, { position: 'top-center' });
         fetchCustomers();
       } else {
-        alert('顧客の削除に失敗しました。');
+        toast.error('顧客の削除に失敗しました。', { position: 'top-center' });
       }
     } catch (err) {
       console.error(err);
-      alert('通信エラーが発生しました。');
+      toast.error('通信エラーが発生しました。', { position: 'top-center' });
     }
   };
 
@@ -199,7 +217,6 @@ export default function CustomersPage() {
               </td>
               <td style={{ padding: '1rem', textAlign: 'right' }}>
                 <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', marginRight: '0.5rem' }} onClick={() => handleEditClick(c)}>編集</button>
-                {/* 👈 handleDelete に顧客名も渡すように修正 */}
                 <button className="btn" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)' }} onClick={() => handleDelete(c.id, c.name)}>削除</button>
               </td>
             </tr>
@@ -269,8 +286,14 @@ export default function CustomersPage() {
             <input className="input" placeholder="東京都渋谷区..." value={address} onChange={(e) => setAddress(e.target.value)} />
           </div>
 
-          <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-start', padding: '0.75rem 2rem' }}>
-            👥 顧客データベースに登録
+          {/* 👈 【修正】処理中はボタン文言を変更し、disabledでクリック不可能にする */}
+          <button 
+            type="submit" 
+            className="btn btn-primary" 
+            style={{ alignSelf: 'flex-start', padding: '0.75rem 2rem', opacity: isSubmitting ? 0.6 : 1, cursor: isSubmitting ? 'not-allowed' : 'pointer' }}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? '⏳ 登録処理中...' : '👥 顧客データベースに登録'}
           </button>
         </form>
       </div>
@@ -332,8 +355,16 @@ export default function CustomersPage() {
               </div>
               
               <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>更新する</button>
-                <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setEditingCustomer(null)}>キャンセル</button>
+                {/* 👈 【修正】編集用モーダルの保存ボタンも同様にブロック制御 */}
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  style={{ flex: 1, opacity: isUpdating ? 0.6 : 1, cursor: isUpdating ? 'not-allowed' : 'pointer' }}
+                  disabled={isUpdating}
+                >
+                  {isUpdating ? '⏳ 更新中...' : '更新する'}
+                </button>
+                <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setEditingCustomer(null)} disabled={isUpdating}>キャンセル</button>
               </div>
             </form>
           </div>
