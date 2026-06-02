@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Papa from 'papaparse';
-import { toast } from 'react-hot-toast'; // 👈 トースト通知用のインポートを追加
+import { toast } from 'react-hot-toast'; 
 
 interface Employee {
   id: number;
@@ -58,7 +58,6 @@ export default function ProjectsPage() {
   const [productionWebhook, setProductionWebhook] = useState('');
   const [notes, setNotes] = useState('');
 
-  // 👈 【新設】連打防止用のローディング管理状態
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -92,7 +91,7 @@ export default function ProjectsPage() {
       return;
     }
 
-    setIsSubmitting(true); // 👈 登録処理開始（ボタンロック）
+    setIsSubmitting(true); 
 
     const payload = {
       name,
@@ -117,7 +116,7 @@ export default function ProjectsPage() {
         body: JSON.stringify(payload)
       });
       if (res.ok) {
-        toast.success('新しい案件をスピーディに構築しました！', { position: 'top-center' }); // 👈 トースト通知発火
+        toast.success('新しい案件をスピーディに構築しました！', { position: 'top-center' }); 
         setName('');
         setCustomerId('');
         setContractType('単発');
@@ -139,7 +138,7 @@ export default function ProjectsPage() {
       console.error(err);
       toast.error('通信エラーが発生しました', { position: 'top-center' });
     } finally {
-      setIsSubmitting(false); // 👈 処理終了（ボタンロック解除）
+      setIsSubmitting(false); 
     }
   };
 
@@ -152,7 +151,7 @@ export default function ProjectsPage() {
     e.preventDefault();
     if (!editingProject) return;
 
-    setIsUpdating(true); // 👈 更新処理開始（ボタンロック）
+    setIsUpdating(true); 
 
     try {
       const res = await fetch('/api/projects', {
@@ -164,7 +163,7 @@ export default function ProjectsPage() {
         })
       });
       if (res.ok) {
-        toast.success('案件情報を正常に再構成しました', { position: 'top-center' }); // 👈 トースト通知発火
+        toast.success('案件情報を正常に再構成しました', { position: 'top-center' }); 
         setEditingProject(null);
         await fetchData();
       } else {
@@ -175,7 +174,7 @@ export default function ProjectsPage() {
       console.error(err);
       toast.error('通信エラーが発生しました', { position: 'top-center' });
     } finally {
-      setIsUpdating(false); // 👈 処理終了（ボタンロック解除）
+      setIsUpdating(false); 
     }
   };
 
@@ -345,7 +344,6 @@ export default function ProjectsPage() {
             <textarea className="input" style={{ height: '80px', paddingTop: '0.5rem' }} placeholder="案件に関する特記事項や詳細など" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
 
-          {/* 👈 【修正】処理中のローディング制御、disabled、スタイル変更の適用 */}
           <button 
             type="submit" 
             className="btn btn-primary" 
@@ -426,8 +424,13 @@ export default function ProjectsPage() {
                   </span>
                 </td>
                 <td style={{ padding: '1rem', fontWeight: 700 }}>¥{(Number(p.amount || 0)).toLocaleString()}</td>
-                <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{p.order_date}</td>
-                <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{p.deadline}</td>
+                {/* 👈 【大修正】受注日・納期期限から余計な文字を省き、純粋な YYYY-MM-DD だけで出力 */}
+                <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
+                  {p.order_date ? p.order_date.substring(0, 10) : '---'}
+                </td>
+                <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>
+                  {p.deadline ? p.deadline.substring(0, 10) : '---'}
+                </td>
                 <td style={{ padding: '1rem' }}>{p.sales_rep_name || '未指定'}</td>
                 <td style={{ padding: '1rem' }}>{p.production_rep_name || '未指定'}</td>
                 <td style={{ padding: '1rem', textAlign: 'right' }}>
@@ -487,11 +490,11 @@ export default function ProjectsPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
                   <label className="label">営業受注日</label>
-                  <input type="date" className="input" value={editForm.order_date || ''} onChange={(e) => setEditForm({...editForm, order_date: e.target.value})} />
+                  <input type="date" className="input" value={editForm.order_date ? editForm.order_date.substring(0,10) : ''} onChange={(e) => setEditForm({...editForm, order_date: e.target.value})} />
                 </div>
                 <div className="form-group">
                   <label className="label">期限・納期</label>
-                  <input type="date" className="input" value={editForm.deadline || ''} onChange={(e) => setEditForm({...editForm, deadline: e.target.value})} />
+                  <input type="date" className="input" value={editForm.deadline ? editForm.deadline.substring(0,10) : ''} onChange={(e) => setEditForm({...editForm, deadline: e.target.value})} />
                 </div>
               </div>
 
@@ -529,7 +532,6 @@ export default function ProjectsPage() {
               </div>
               
               <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
-                {/* 👈 【修正】編集用モーダルの保存ボタンもローディング制御に対応 */}
                 <button 
                   type="submit" 
                   className="btn btn-primary" 
