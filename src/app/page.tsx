@@ -36,7 +36,6 @@ export default function Home() {
       const customers = await cRes.json();
       const employees = await eRes.json();
 
-      // 【バグ修正】Number()で確実に数値型に変換してから足し算を行うように徹底
       const totalRev = projects
         .filter((p: any) => p.status === '完了')
         .reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0);
@@ -53,7 +52,6 @@ export default function Home() {
         totalForecast: totalFore
       });
 
-      // 【バグ修正】月ごとの集計でも、文字結合が起きないようNumber()変換を徹底
       const monthlyMap: Record<string, { confirmed: number, forecast: number }> = {};
       projects.forEach((p: any) => {
         const month = p.order_date.substring(0, 7);
@@ -80,7 +78,6 @@ export default function Home() {
 
       setSalesByMonth(sortedMonths);
 
-      // Status Counts
       const sMap: Record<string, number> = {};
       const funnelData = { tele: 0, negotiation: 0, order: 0 };
       
@@ -94,7 +91,6 @@ export default function Home() {
       setStatusCounts(Object.entries(sMap).map(([status, count]) => ({ status, count })));
       setFunnel(funnelData);
 
-      // Workload Aggregation
       const wMap: Record<string, number> = {};
       projects.forEach((p: any) => {
         if (p.status !== '完了' && p.status !== '失注') {
@@ -104,7 +100,6 @@ export default function Home() {
       });
       setRepWorkload(Object.entries(wMap).sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count })));
 
-      // Alerts
       const newAlerts: Alert[] = [];
       const today = new Date().toISOString().split('T')[0];
       for (const project of projects.slice(0, 10)) {
@@ -171,7 +166,8 @@ export default function Home() {
 
   return (
     <div className="container">
-      <header className="grid-responsive" style={{ marginBottom: '3rem', gridTemplateColumns: '1fr auto', alignItems: 'flex-end' }}>
+      {/* CSSのレスポンシブを効かせるため、ヘッダーのインラインスタイルを排除 */}
+      <header className="grid-responsive dashboard-header" style={{ marginBottom: '3rem', alignItems: 'flex-end' }}>
         <div>
           <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>分析ダッシュボード</h1>
           <p style={{ color: 'var(--text-muted)' }}>システムの稼働状況と主要な経営指標を各セクションから抽出しています。</p>
@@ -183,15 +179,14 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main Stats Row */}
-      <div className="grid-responsive" style={{ gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: '3rem', gap: '1rem' }}>
+      {/* クラス定義のレスポンシブを上書きしないよう、最上段カードのインラインgridを排除しCSS（下記追加分）で安全に制御 */}
+      <div className="grid-responsive stats-row" style={{ marginBottom: '3rem', gap: '1rem' }}>
         <div className="glass-panel" style={{ borderTop: '4px solid var(--primary)' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>累計成約額（確定）</p>
           <h2 style={{ fontSize: '1.6rem' }}>¥{(stats.totalRevenue / 10000).toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>万</span></h2>
         </div>
         <div className="glass-panel" style={{ borderTop: '4px solid #a855f7' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>進行中の見込み総額</p>
-          {/* 【修正】万単位の表記を保つため、正しく1万で割り算してからトータルを表示 */}
           <h2 style={{ fontSize: '1.6rem' }}>¥{(stats.totalForecast / 10000).toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>万</span></h2>
         </div>
         <div className="glass-panel" style={{ borderTop: '4px solid var(--accent)' }}>
@@ -208,11 +203,12 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="grid-responsive" style={{ gridTemplateColumns: '2fr 1fr', marginBottom: '2rem' }}>
+      {/* 2カラム表示のレスポンシブ制御 */}
+      <div className="grid-responsive main-charts-row" style={{ marginBottom: '2rem' }}>
         {/* Sales visualization */}
-        <div className="glass-panel">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h3>売上推移（直近6ヶ月）</h3>
+        <div className="glass-panel" style={{ overflowX: 'auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '1rem', flexWrap: 'wrap' }}>
+            <h3 style={{ margin: 0 }}>売上推移（直近6ヶ月）</h3>
             <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                 <span style={{ display: 'inline-block', width: '12px', height: '12px', background: 'var(--primary)', borderRadius: '3px' }}></span> 確定分
@@ -222,7 +218,8 @@ export default function Home() {
               </span>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem', height: '260px', paddingBottom: '30px', paddingTop: '30px' }}>
+          {/* 横スクロールしても潰れないよう最低幅を設定 */}
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem', height: '260px', paddingBottom: '30px', paddingTop: '30px', minWidth: '400px' }}>
             {salesByMonth.map((s, i) => (
               <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', width: '100%', height: '100%', justifyContent: 'center' }}>
@@ -291,7 +288,8 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="grid-responsive" style={{ gridTemplateColumns: 'minmax(0, 1fr) 2fr', marginBottom: '2rem' }}>
+      {/* ファンネルセクション */}
+      <div className="grid-responsive funnel-row" style={{ marginBottom: '2rem' }}>
         {/* Sales Funnel Analysis */}
         <div className="glass-panel">
           <h3 style={{ marginBottom: '1.5rem' }}>セールスファンネル（歩留まり）</h3>
@@ -328,7 +326,8 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="grid-responsive" style={{ gridTemplateColumns: '1fr 1fr' }}>
+      {/* 下段2カラムエリア */}
+      <div className="grid-responsive bottom-tables-row">
         {/* Urgent Alerts */}
         <div className="glass-panel">
           <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -336,12 +335,12 @@ export default function Home() {
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {alerts.slice(0, 4).map((alert, idx) => (
-              <div key={idx} style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.1)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div key={idx} style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.05)', border: '1px solid rgba(239, 68, 68, 0.1)', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
                 <div>
                   <p style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '0.2rem' }}>{alert.projectName}</p>
                   <p style={{ fontSize: '0.75rem', color: 'var(--danger)' }}>{alert.taskName} が期限切れ ({alert.dueDate})</p>
                 </div>
-                <Link href={`/projects/${alert.projectId}`} className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.70rem' }}>工程へ</Link>
+                <Link href={`/projects/${alert.projectId}`} className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.70rem', whiteSpace: 'nowrap' }}>工程へ</Link>
               </div>
             ))}
             {alerts.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>全ての工程が順調です ✨</p>}
@@ -355,7 +354,7 @@ export default function Home() {
             {repWorkload.slice(0, 10).map((rw, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', borderLeft: rw.count >= 8 ? '4px solid #ef4444' : rw.count >= 5 ? '4px solid #f59e0b' : '4px solid transparent' }}>
                 <div style={{ 
-                  width: '40px', height: '40px', 
+                  width: '40px', height: '40px', flexShrink: 0,
                   background: rw.count >= 8 ? '#ef4444' : rw.count >= 5 ? '#f59e0b' : 'var(--primary)', 
                   borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: '#fff' 
                 }}>
@@ -371,7 +370,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div style={{ 
-                  padding: '0.25rem 0.75rem', 
+                  padding: '0.25rem 0.75rem', flexShrink: 0,
                   background: rw.count >= 8 ? 'rgba(239, 68, 68, 0.2)' : rw.count >= 5 ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255, 255, 255, 0.05)', 
                   color: rw.count >= 8 ? '#ef4444' : rw.count >= 5 ? '#f59e0b' : 'inherit',
                   borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700 
@@ -384,8 +383,34 @@ export default function Home() {
         </div>
       </div>
 
+      {/* CSSのレスポンシブ用の特別ルール（スマホ時に綺麗に縦並びにするためだけの追記） */}
+      <style jsx global>{`
+        @media (max-width: 768px) {
+          .dashboard-header {
+            grid-template-columns: 1fr !important;
+            text-align: center;
+          }
+          .dashboard-header .btn {
+            width: 100% !important;
+            margin-top: 1rem;
+          }
+          .stats-row {
+            grid-template-columns: 1fr !important;
+          }
+          .main-charts-row {
+            grid-template-columns: 1fr !important;
+          }
+          .funnel-row {
+            grid-template-columns: 1fr !important;
+          }
+          .bottom-tables-row {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+
       <footer style={{ marginTop: '3rem', padding: '2rem', borderTop: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
-        <button className="btn btn-secondary" onClick={handleRecurring} style={{ fontSize: '0.85rem' }}>
+        <button className="btn btn-secondary" onClick={handleRecurring} style={{ fontSize: '0.85rem', width: '100%', maxWidth: '400px' }}>
           🔄 定期案件の翌月工程を一括生成する
         </button>
       </footer>
