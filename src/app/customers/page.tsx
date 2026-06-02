@@ -5,24 +5,24 @@ import { useState, useEffect } from 'react';
 interface Customer {
   id: number;
   name: string;
-  company?: string;
+  customer_rep?: string; // 👈 Supabaseの定義「担当者/企業」に修正
   email?: string;
   phone?: string;
-  status: string; // 検討中, 契約中, 解約
-  contract_type?: string; // 👈 【新設】単発, 月定額, 年間契約, 未定
-  notes?: string;
+  status: string; 
+  contract_type?: string; 
+  address?: string; // 👈 Supabaseの定義に修正
   created_at?: string;
 }
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [name, setName] = useState('');
-  const [company, setCompany] = useState('');
+  const [customerRep, setCustomerRep] = useState(''); // 👈 修正
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [status, setStatus] = useState('検討中');
-  const [contractType, setContractType] = useState('未定'); // 👈 【新設】デフォルト値
-  const [notes, setNotes] = useState('');
+  const [contractType, setContractType] = useState('未定'); 
+  const [address, setAddress] = useState(''); // 👈 修正
 
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [editForm, setEditForm] = useState<Partial<Customer>>({});
@@ -45,18 +45,19 @@ export default function CustomersPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name) {
-      alert('担当者名（または顧客名）は必須です。');
+      alert('顧客名は必須です。');
       return;
     }
 
+    // 👈 Supabaseの route.ts が受け取れる変数名に100%一致させます
     const payload = {
       name,
-      company: company || null,
+      customer_rep: customerRep || null,
       email: email || null,
       phone: phone || null,
       status,
-      contract_type: contractType, // 👈 【新設】APIへの送信
-      notes: notes || null
+      contract_type: contractType, 
+      address: address || null
     };
 
     try {
@@ -67,12 +68,12 @@ export default function CustomersPage() {
       });
       if (res.ok) {
         setName('');
-        setCompany('');
+        setCustomerRep('');
         setEmail('');
         setPhone('');
         setStatus('検討中');
-        setContractType('未定'); // 👈 リセット
-        setNotes('');
+        setContractType('未定'); 
+        setAddress('');
         fetchCustomers();
       }
     } catch (err) {
@@ -90,10 +91,20 @@ export default function CustomersPage() {
     if (!editingCustomer) return;
 
     try {
-      const res = await fetch(`/api/customers?id=${editingCustomer.id}`, {
-        method: 'PUT',
+      // 👈 API(PATCH)の受け取り形式に完全一致
+      const res = await fetch('/api/customers', {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm)
+        body: JSON.stringify({ 
+          id: editingCustomer.id,
+          name: editForm.name,
+          customer_rep: editForm.customer_rep,
+          email: editForm.email,
+          phone: editForm.phone,
+          status: editForm.status,
+          contract_type: editForm.contract_type,
+          address: editForm.address
+        })
       });
       if (res.ok) {
         setEditingCustomer(null);
@@ -105,7 +116,7 @@ export default function CustomersPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('この顧客データを削除してもよろしいですか？（紐づく案件がある場合、表示に影響が出る可能性があります）')) return;
+    if (!confirm('この顧客データを削除してもよろしいですか？')) return;
     try {
       const res = await fetch(`/api/customers?id=${id}`, { method: 'DELETE' });
       if (res.ok) fetchCustomers();
@@ -127,12 +138,12 @@ export default function CustomersPage() {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
             <div className="form-group">
-              <label className="label">顧客名 / 担当者名 *</label>
-              <input className="input" placeholder="例: 山田 太郎" value={name} onChange={(e) => setName(e.target.value)} required />
+              <label className="label">顧客名 *</label>
+              <input className="input" placeholder="例: 株式会社インテグレーション" value={name} onChange={(e) => setName(e.target.value)} required />
             </div>
             <div className="form-group">
-              <label className="label">企業・組織名 (任意)</label>
-              <input className="input" placeholder="例: 株式会社インテグレーション" value={company} onChange={(e) => setCompany(e.target.value)} />
+              <label className="label">担当者名</label>
+              <input className="input" placeholder="例: 山田 太郎" value={customerRep} onChange={(e) => setCustomerRep(e.target.value)} />
             </div>
             <div className="form-group">
               <label className="label">メールアドレス</label>
@@ -147,16 +158,15 @@ export default function CustomersPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
             <div className="form-group">
               <label className="label">取引状況 (ステータス)</label>
-              <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
+              <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="検討中">検討中</option>
                 <option value="契約中">🎉 契約中</option>
                 <option value="解約">解約</option>
               </select>
             </div>
-            {/* 👈 【新設】登録フォームの契約種別 */}
             <div className="form-group">
               <label className="label">現在の契約種別</label>
-              <select className="input" value={contractType} onChange={(e) => setContractType(e.target.value)}>
+              <select className="select" value={contractType} onChange={(e) => setContractType(e.target.value)}>
                 <option value="未定">未定（検討中など）</option>
                 <option value="単発">単発案件</option>
                 <option value="月定額">月額定額案件 (リカーリング)</option>
@@ -166,8 +176,8 @@ export default function CustomersPage() {
           </div>
 
           <div className="form-group">
-            <label className="label">顧客特記事項・契約メモ</label>
-            <textarea className="input" style={{ height: '80px', paddingTop: '0.5rem' }} placeholder="住所、商談時の要望、過去の経緯など" value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <label className="label">住所・アクセス情報</label>
+            <input className="input" placeholder="東京都渋谷区..." value={address} onChange={(e) => setAddress(e.target.value)} />
           </div>
 
           <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-start', padding: '0.75rem 2rem' }}>
@@ -182,12 +192,12 @@ export default function CustomersPage() {
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
               <th style={{ padding: '1rem', width: '60px' }}>ID</th>
-              <th style={{ padding: '1rem' }}>顧客・担当者名</th>
-              <th style={{ padding: '1rem' }}>企業・組織名</th>
+              <th style={{ padding: '1rem' }}>顧客名</th>
+              <th style={{ padding: '1rem' }}>担当者名</th>
               <th style={{ padding: '1rem' }}>メールアドレス</th>
               <th style={{ padding: '1rem' }}>電話番号</th>
               <th style={{ padding: '1rem' }}>取引状況</th>
-              <th style={{ padding: '1rem' }}>契約種別</th> {/* 👈 【新設】一覧の列 */}
+              <th style={{ padding: '1rem' }}>契約種別</th> 
               <th style={{ padding: '1rem', textAlign: 'right' }}>操作</th>
             </tr>
           </thead>
@@ -196,7 +206,7 @@ export default function CustomersPage() {
               <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)', fontSize: '0.9rem' }} className="table-row-hover">
                 <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{c.id}</td>
                 <td style={{ padding: '1rem', fontWeight: 600, color: 'var(--primary)' }}>{c.name}</td>
-                <td style={{ padding: '1rem' }}>{c.company || '---'}</td>
+                <td style={{ padding: '1rem' }}>{c.customer_rep || '---'}</td>
                 <td style={{ padding: '1rem', color: 'var(--text-main)' }}>{c.email || '---'}</td>
                 <td style={{ padding: '1rem', color: 'var(--text-muted)' }}>{c.phone || '---'}</td>
                 <td style={{ padding: '1rem' }}>
@@ -208,7 +218,6 @@ export default function CustomersPage() {
                     {c.status}
                   </span>
                 </td>
-                {/* 👈 【新設】一覧のバッジ表示 */}
                 <td style={{ padding: '1rem' }}>
                   <span style={{ 
                     padding: '0.25rem 0.6rem', 
@@ -244,12 +253,12 @@ export default function CustomersPage() {
             <form onSubmit={handleUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
-                  <label className="label">顧客・担当者名</label>
+                  <label className="label">顧客名</label>
                   <input className="input" value={editForm.name || ''} onChange={(e) => setEditForm({...editForm, name: e.target.value})} required />
                 </div>
                 <div className="form-group">
-                  <label className="label">企業・組織名</label>
-                  <input className="input" value={editForm.company || ''} onChange={(e) => setEditForm({...editForm, company: e.target.value})} />
+                  <label className="label">担当者名</label>
+                  <input className="input" value={editForm.customer_rep || ''} onChange={(e) => setEditForm({...editForm, customer_rep: e.target.value})} />
                 </div>
               </div>
 
@@ -267,16 +276,15 @@ export default function CustomersPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
                   <label className="label">取引状況</label>
-                  <select className="input" value={editForm.status || '検討中'} onChange={(e) => setEditForm({...editForm, status: e.target.value})}>
+                  <select className="select" value={editForm.status || '検討中'} onChange={(e) => setEditForm({...editForm, status: e.target.value})}>
                     <option value="検討中">検討中</option>
                     <option value="契約中">契約中</option>
                     <option value="解約">解約</option>
                   </select>
                 </div>
-                {/* 👈 【新設】編集フォームの契約種別 */}
                 <div className="form-group">
                   <label className="label">現在の契約種別</label>
-                  <select className="input" value={editForm.contract_type || '未定'} onChange={(e) => setEditForm({...editForm, contract_type: e.target.value})}>
+                  <select className="select" value={editForm.contract_type || '未定'} onChange={(e) => setEditForm({...editForm, contract_type: e.target.value})}>
                     <option value="未定">未定（検討中など）</option>
                     <option value="単発">単発案件</option>
                     <option value="月定額">月額定額案件</option>
@@ -286,8 +294,8 @@ export default function CustomersPage() {
               </div>
 
               <div className="form-group">
-                <label className="label">特記事項・契約メモ</label>
-                <textarea className="input" style={{ height: '80px', paddingTop: '0.5rem' }} value={editForm.notes || ''} onChange={(e) => setEditForm({...editForm, notes: e.target.value})} />
+                <label className="label">住所・アクセス情報</label>
+                <textarea className="input" style={{ height: '60px', paddingTop: '0.5rem' }} value={editForm.address || ''} onChange={(e) => setEditForm({...editForm, address: e.target.value})} />
               </div>
               
               <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
