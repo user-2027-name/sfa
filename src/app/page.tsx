@@ -283,12 +283,12 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 👈 【大修正】ファンネル、緊急対応、担当者別進捗状況を、黄金比率の 1fr 1fr 1fr 3カラム横並びに統合！ */}
+      {/* 👈 【修正ポイント】ファンネル、緊急対応、担当者別進捗状況を等幅(1fr)の3列グリッドに完全に統合 */}
       <div className="grid-responsive desktop-3column-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2rem', marginBottom: '2rem' }}>
         
-        {/* 1列目: セールスファンネル */}
+        {/* 1カラム目: セールスファンネル */}
         <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-          <h3 style={{ marginBottom: '1.5rem' }}>セールスファンネル</h3>
+          <h3 style={{ marginBottom: '1.5rem' }}>セールスファンネル（歩留まり）</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', alignItems: 'center', flex: 1, justifyContent: 'center' }}>
             <div style={{ width: '100%', textAlign: 'center' }}>
               <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>全リード</div>
@@ -321,7 +321,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* 2列目: 緊急対応・遅延アラート */}
+        {/* 2カラム目: 緊急対応・遅延アラート */}
         <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span style={{ color: 'var(--danger)' }}>⚡</span> 緊急対応・遅延
@@ -340,7 +340,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* 3列目: 担当者別 進行案件数 */}
+        {/* 3カラム目: 担当者別 進行案件数 */}
         <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ marginBottom: '1.5rem' }}>担当者別 進行案件数</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, overflowY: 'auto', maxHeight: '290px' }}>
@@ -381,7 +381,7 @@ export default function Home() {
       <style jsx global>{`
         @media (max-width: 992px) {
           .desktop-3column-row {
-            grid-template-columns: 1fr !important;
+            grid-template-columns: 1fr !important; /* タブレット以下では縦に並べる */
           }
         }
         @media (max-width: 768px) {
