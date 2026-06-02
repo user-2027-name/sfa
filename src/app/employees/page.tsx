@@ -123,7 +123,9 @@ export default function EmployeesPage() {
       <div className="glass-panel" style={{ marginBottom: '3rem', padding: '2rem' }}>
         <h3 style={{ marginBottom: '1.5rem' }}>👤 新しいメンバーを招待</h3>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
+          
+          {/* 👈 【大修正】フォーム全体のレスポンシブ・グリッド化 */}
+          <div className="form-responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem' }}>
             <div className="form-group">
               <label className="label">氏名 *</label>
               <input className="input" placeholder="例: 尾崎 直人" value={name} onChange={(e) => setName(e.target.value)} required disabled={isSubmitting} />
@@ -144,17 +146,15 @@ export default function EmployeesPage() {
                 <option value="役員">役員・管理者</option>
               </select>
             </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
             <div className="form-group">
               <label className="label">社内メールアドレス</label>
               <input type="email" className="input" placeholder="username@ims-hirosaki.com" value={email} onChange={(e) => setEmail(e.target.value)} disabled={isSubmitting} />
             </div>
-            <div className="form-group">
-              <label className="label">専用通知用 WebHook URL (任意)</label>
-              <input className="input" placeholder="SlackやChatworkの個人通知用URL" value={notificationWebhook} onChange={(e) => setNotificationWebhook(e.target.value)} disabled={isSubmitting} />
-            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="label">専用通知用 WebHook URL (任意)</label>
+            <input className="input" placeholder="SlackやChatworkの個人通知用URL" value={notificationWebhook} onChange={(e) => setNotificationWebhook(e.target.value)} disabled={isSubmitting} />
           </div>
 
           <button 
@@ -168,10 +168,9 @@ export default function EmployeesPage() {
         </form>
       </div>
 
-      {/* 一覧リストエリア (レスポンシブ・グリッド対応) */}
+      {/* 一覧リストエリア */}
       <h3 style={{ marginBottom: '1.25rem' }}>👥 登録メンバー一覧 ({employees.length}名)</h3>
       
-      {/* 👈 【大修正】スマホ時は幅いっぱいのスタイリッシュなカード型に自動シフトし、長いメールもはみ出させないコンテナ構造 */}
       <div className="employee-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
         {employees.map(emp => (
           <div key={emp.id} className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyBetween: 'space-between', gap: '1rem', borderLeft: emp.department === '営業部' ? '4px solid var(--primary)' : emp.department === '制作部' ? '4px solid var(--accent)' : '4px solid #f59e0b' }}>
@@ -189,7 +188,6 @@ export default function EmployeesPage() {
               </div>
             </div>
 
-            {/* 👈 メールアドレスとはみ出し防止ロジック */}
             <div style={{ background: 'rgba(0,0,0,0.15)', padding: '0.75rem', borderRadius: '8px', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', overflow: 'hidden' }}>
               <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: 600 }}>メールアドレス</div>
               <div style={{ color: 'var(--text-main)', fontWeight: 500, wordBreak: 'break-all', whiteSpace: 'normal' }}>
@@ -206,7 +204,6 @@ export default function EmployeesPage() {
               )}
             </div>
 
-            {/* ボタンアクション行 */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: 'auto', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.03)' }}>
               <button className="btn btn-secondary" style={{ padding: '0.3rem 0.75rem', fontSize: '0.75rem' }} onClick={() => handleEditClick(emp)} disabled={deletingId !== null}>編集</button>
               <button 
@@ -280,6 +277,19 @@ export default function EmployeesPage() {
           </div>
         </div>
       )}
+
+      {/* 👈 【フォーム縦並び化のレスポンシブCSS定義】 */}
+      <style jsx global>{`
+        @media (max-width: 600px) {
+          .form-responsive-grid {
+            grid-template-columns: 1fr !important; /* スマホ以下では必ず1列（縦並び）にする */
+          }
+          .btn-primary {
+            width: 100% !important; /* スマホの時は登録ボタンも押しやすく横いっぱいに広げる */
+            text-align: center;
+          }
+        }
+      `}</style>
     </div>
   );
 }
