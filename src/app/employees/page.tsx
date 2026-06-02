@@ -124,7 +124,6 @@ export default function EmployeesPage() {
         <h3 style={{ marginBottom: '1.5rem' }}>👤 新しいメンバーを招待</h3>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           
-          {/* 👈 【大修正】フォーム全体のレスポンシブ・グリッド化 */}
           <div className="form-responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem' }}>
             <div className="form-group">
               <label className="label">氏名 *</label>
@@ -173,7 +172,8 @@ export default function EmployeesPage() {
       
       <div className="employee-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
         {employees.map(emp => (
-          <div key={emp.id} className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyBetween: 'space-between', gap: '1rem', borderLeft: emp.department === '営業部' ? '4px solid var(--primary)' : emp.department === '制作部' ? '4px solid var(--accent)' : '4px solid #f59e0b' }}>
+          /* 👈 【大修正】タイポのあった justifyBetween を正しい「justifyContent」に完全に修正しました */
+          <div key={emp.id} className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '1rem', borderLeft: emp.department === '営業部' ? '4px solid var(--primary)' : emp.department === '制作部' ? '4px solid var(--accent)' : '4px solid #f59e0b' }}>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
@@ -278,14 +278,13 @@ export default function EmployeesPage() {
         </div>
       )}
 
-      {/* 👈 【フォーム縦並び化のレスポンシブCSS定義】 */}
       <style jsx global>{`
         @media (max-width: 600px) {
           .form-responsive-grid {
-            grid-template-columns: 1fr !important; /* スマホ以下では必ず1列（縦並び）にする */
+            grid-template-columns: 1fr !important;
           }
           .btn-primary {
-            width: 100% !important; /* スマホの時は登録ボタンも押しやすく横いっぱいに広げる */
+            width: 100% !important;
             text-align: center;
           }
         }
