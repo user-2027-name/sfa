@@ -100,7 +100,7 @@ export default function CustomersPage() {
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingProject) return; // ※型ガード
+    if (!editingCustomer) return; // 👈 【ここを修正】editingProject から editingCustomer に直しました
 
     setIsUpdating(true); 
 
@@ -122,7 +122,7 @@ export default function CustomersPage() {
       if (res.ok) {
         toast.success('顧客情報を更新しました', { position: 'top-center' }); 
         setEditingCustomer(null);
-        await fetchCustomers();
+        await fetchCustomers(); // 最新データを再取得
       } else {
         toast.error('更新に失敗しました', { position: 'top-center' });
       }
