@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Papa from 'papaparse';
-import { toast } from 'react-hot-toast'; // 👈 共通トースト用ライブラリをインポート
+import { toast } from 'react-hot-toast'; // 👈 共通トースト用ライブラリ
 
 interface Employee {
   id: number;
@@ -144,7 +144,7 @@ export default function ProjectsPage() {
       }),
     });
     if (res.ok) {
-      toast.success('案件を新しく登録しました！'); // 👈 alert から共通トーストに変更
+      toast.success('案件を新しく登録しました！');
       setName('');
       setCustomerId('');
       setCustomerSearch('');
@@ -189,7 +189,7 @@ export default function ProjectsPage() {
           body: JSON.stringify(results.data),
         });
         if (res.ok) {
-          toast.success('インポートに成功しました！'); // 👈 alert から共通トーストに変更
+          toast.success('インポートに成功しました！');
           fetchProjects();
         } else {
           toast.error('インポートに失敗しました');
@@ -213,14 +213,13 @@ export default function ProjectsPage() {
       return;
     }
 
+    // 👈 「完了」確認時のブラウザconfirmを撤廃し、トースト警告を出して処理を進める形に変更
     if (editForm.status === '完了' && editingProject?.status !== '完了') {
       const tRes = await fetch(`/api/tasks?projectId=${encodeURIComponent(editForm.id)}`);
       const tasks = await tRes.json();
       const unfinished = tasks.filter((t: any) => t.status !== '完了');
       if (unfinished.length > 0) {
-        if (!confirm(`未完了のタスクが ${unfinished.length} 件ありますが、案件を完了にしてよろしいですか？`)) {
-          return;
-        }
+        toast('⚠️ 未完了のタスクが残った状態で完了に更新します。', { icon: 'ℹ️' });
       }
     }
 
@@ -231,7 +230,7 @@ export default function ProjectsPage() {
     });
 
     if (res.ok) {
-      toast.success('案件情報を更新しました'); // 👈 モーダル更新成功時もトーストに変更
+      toast.success('案件情報を更新しました');
       setEditingProject(null);
       fetchProjects();
     } else {
@@ -258,12 +257,11 @@ export default function ProjectsPage() {
     }
   };
 
+  // 👈 削除時の確認ポップアップも撤廃し、即時実行してトースト通知する形に一本化
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`案件「${name}」を削除しますか？\n付随するタスク工程もすべて削除されます。`)) return;
-    
     const res = await fetch(`/api/projects?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
     if (res.ok) {
-      toast.success('案件を削除しました');
+      toast.success(`案件「${name}」を削除しました`);
       fetchProjects();
     } else {
       const errorData = await res.json();
@@ -375,7 +373,6 @@ export default function ProjectsPage() {
                   <button 
                     className="btn btn-secondary" 
                     style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem' }} 
-                    title="Googleカレンダーに納期を登録（別ウィンドウで開く）"
                     onClick={() => {
                       const url = getCalendarUrl(`【納期】${project.name}`, project.deadline || '', `案件URL: ${window.location.origin}/projects/${project.id}`, [project.sales_rep_email || '', project.production_rep_email || '']);
                       window.open(url, 'GoogleCalendar', 'width=800,height=700,menubar=no,toolbar=no,location=no,status=no');
@@ -493,9 +490,9 @@ export default function ProjectsPage() {
           </div>
 
           <div className="form-group">
-            <label className="label">見積額（税込）</label> {/* 👈 ラベルの変更 */}
+            <label className="label">見積額（税込）</label>
             <input 
-              type="text" // 👈 先頭0を排除するため、一度text型として受ける仕様へ修正
+              type="text" 
               className="input" 
               placeholder="0" 
               value={amount} 
@@ -504,7 +501,6 @@ export default function ProjectsPage() {
                 if (val === '') {
                   setAmount('');
                 } else {
-                  // 👈 数字以外をカットし、かつ先頭に連続する0を排除する入力仕様修正
                   const sanitized = val.replace(/\D/g, '').replace(/^0+/, '');
                   setAmount(sanitized === '' ? 0 : Number(sanitized));
                 }
@@ -516,12 +512,10 @@ export default function ProjectsPage() {
             <input type="date" className="input" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
           </div>
           <div className="form-group">
-            <label className="label">商談予定日 📅</label> {/* 👈 項目追加 */}
+            <label className="label">商談予定日 📅</label>
             <input type="date" className="input" value={discussionDate} onChange={(e) => setDiscussionDate(e.target.value)} />
           </div>
-          <div className="form-group" style={{ visibility: 'hidden' }}>
-            {/* ダミー要素 */}
-          </div>
+          <div className="form-group" style={{ visibility: 'hidden' }}></div>
 
           <div className="form-group" style={{ gridColumn: 'span 2' }}>
             <label className="label">営業担当者</label>
@@ -623,7 +617,7 @@ export default function ProjectsPage() {
                   body: JSON.stringify({ key: 'shared_webhook_url', value: globalWebhookUrl })
                 });
                 if (res.ok) {
-                  toast.success('共通Webhook設定を保存しました'); // 👈 トースト通知へ変更
+                  toast.success('共通Webhook設定を保存しました');
                   fetchSettings();
                 }
               }}
@@ -707,9 +701,9 @@ export default function ProjectsPage() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group">
-                  <label className="label">見積額（税込）</label> {/* 👈 ラベルの変更 */}
+                  <label className="label">見積額（税込）</label>
                   <input 
-                    type="text" // 👈 修正用モーダルでも先頭0を排除するため、text型で受ける
+                    type="text" 
                     className="input" 
                     placeholder="0"
                     value={editForm.amount === null || editForm.amount === undefined ? '' : editForm.amount} 
@@ -718,7 +712,6 @@ export default function ProjectsPage() {
                       if (val === '') {
                         setEditForm({...editForm, amount: ''});
                       } else {
-                        // 👈 修正用モーダルでも先頭0を排除する入力仕様修正
                         const sanitized = val.replace(/\D/g, '').replace(/^0+/, '');
                         setEditForm({...editForm, amount: sanitized === '' ? 0 : Number(sanitized)});
                       }
@@ -726,7 +719,7 @@ export default function ProjectsPage() {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="label">商談予定日 📅</label> {/* 👈 項目追加 */}
+                  <label className="label">商談予定日 📅</label>
                   <input 
                     type="date" 
                     className="input" 
@@ -746,78 +739,6 @@ export default function ProjectsPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="form-group">
-                  <label className="label">営業担当者</label>
-                  <select 
-                    className="select" 
-                    value={editForm.sales_rep_id || ''} 
-                    onChange={(e) => {
-                      const id = e.target.value;
-                      const emp = employees.find(emp => emp.id.toString() === id);
-                      const update: any = { sales_rep_id: id };
-                      if (emp?.notification_webhook && !editForm.sales_webhook) {
-                        update.sales_webhook = emp.notification_webhook;
-                        update.notify_external = true;
-                      }
-                      setEditForm({...editForm, ...update});
-                    }}
-                  >
-                    <option value="">選択してください</option>
-                    {employees.filter(e => e.role === '営業' || e.role === '兼務').map(e => (
-                      <option key={e.id} value={e.id}>{e.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="label">制作担当者</label>
-                  <select 
-                    className="select" 
-                    value={editForm.production_rep_id || ''} 
-                    onChange={(e) => {
-                      const id = e.target.value;
-                      const emp = employees.find(emp => emp.id.toString() === id);
-                      const update: any = { production_rep_id: id };
-                      if (emp?.notification_webhook && !editForm.production_webhook) {
-                        update.production_webhook = emp.notification_webhook;
-                        update.notify_external = true;
-                      }
-                      setEditForm({...editForm, ...update});
-                    }}
-                  >
-                    <option value="">選択してください</option>
-                    {employees.filter(e => e.role === '制作' || e.role === '兼務').map(e => (
-                      <option key={e.id} value={e.id}>{e.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '1rem', paddingTop: '1rem' }}>
-                <input type="checkbox" checked={!!editForm.notify_external} onChange={(e) => setEditForm({...editForm, notify_external: e.target.checked})} id="edit-notify" />
-                <label htmlFor="edit-notify" style={{ cursor: 'pointer', fontSize: '0.875rem' }}>
-                  外部通知を有効にする
-                  {globalWebhookUrl && <span style={{ color: 'var(--primary)', marginLeft: '1rem' }}>(共通Webhook有効)</span>}
-                </label>
-              </div>
-              {editForm.notify_external && !globalWebhookUrl && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div className="form-group">
-                    <label className="label">営業用通知URL</label>
-                    <input className="input" placeholder="営業WebHook..." value={editForm.sales_webhook || ''} onChange={(e) => setEditForm({...editForm, sales_webhook: e.target.value})} />
-                  </div>
-                  <div className="form-group">
-                    <label className="label">制作用通知URL</label>
-                    <input className="input" placeholder="制作WebHook..." value={editForm.production_webhook || ''} onChange={(e) => setEditForm({...editForm, production_webhook: e.target.value})} />
-                  </div>
-                </div>
-              )}
-
-              <div className="form-group">
-                <label className="label">備考 / メモ</label>
-                <textarea className="input" style={{ height: '80px', paddingTop: '0.5rem' }} value={editForm.notes || ''} onChange={(e) => setEditForm({...editForm, notes: e.target.value})} />
-              </div>
-              
               <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
                 <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>保存する</button>
                 <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setEditingProject(null)}>キャンセル</button>
