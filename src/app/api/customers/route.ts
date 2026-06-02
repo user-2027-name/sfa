@@ -12,6 +12,7 @@ export async function GET(request: Request) {
       return NextResponse.json(customers[0]);
     }
 
+    // 👈 顧客一覧取得時、追加した contract_type も確実に取得
     const customers = await sql`
       SELECT c.*, 
              MAX(l.sent_at) as last_sent_at,
@@ -30,15 +31,18 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { name, phone, email, status, customer_rep, address, position, postal_code } = await request.json();
+    // 👈 contract_type をフロントエンドから新しく受け取る
+    const { name, phone, email, status, customer_rep, address, position, postal_code, contract_type } = await request.json();
+    
+    // 👈 データベースへのインサート文に contract_type を追加
     const result = await sql`
-      INSERT INTO customers (name, phone, email, status, customer_rep, address, position, postal_code) 
-      VALUES (${name}, ${phone}, ${email}, ${status}, ${customer_rep}, ${address}, ${position || null}, ${postal_code || null})
+      INSERT INTO customers (name, phone, email, status, customer_rep, address, position, postal_code, contract_type) 
+      VALUES (${name}, ${phone}, ${email}, ${status}, ${customer_rep}, ${address}, ${position || null}, ${postal_code || null}, ${contract_type || '未定'})
       RETURNING id
     `;
     return NextResponse.json({ 
       id: result[0].id, 
-      name, phone, email, status, customer_rep, address, position, postal_code 
+      name, phone, email, status, customer_rep, address, position, postal_code, contract_type 
     });
   } catch (error) {
     console.error('Create customer error:', error);
@@ -48,10 +52,12 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const { id, name, phone, email, status, customer_rep, address, position, postal_code } = await request.json();
+    // 👈 更新時も contract_type をしっかりキャッチ
+    const { id, name, phone, email, status, customer_rep, address, position, postal_code, contract_type } = await request.json();
     
     if (!id) return NextResponse.json({ error: 'Missing customer ID' }, { status: 400 });
 
+    // 👈 アップデートSQLに contract_type の更新を追加
     await sql`
       UPDATE customers SET
         name = COALESCE(${name || null}, name),
@@ -61,7 +67,8 @@ export async function PATCH(request: Request) {
         customer_rep = COALESCE(${customer_rep || null}, customer_rep),
         address = COALESCE(${address || null}, address),
         position = COALESCE(${position || null}, position),
-        postal_code = COALESCE(${postal_code || null}, postal_code)
+        postal_code = COALESCE(${postal_code || null}, postal_code),
+        contract_type = COALESCE(${contract_type || null}, contract_type)
       WHERE id = ${id}
     `;
 
