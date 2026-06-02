@@ -5,24 +5,24 @@ import { useState, useEffect } from 'react';
 interface Customer {
   id: number;
   name: string;
-  customer_rep?: string; // 👈 Supabaseの定義「担当者/企業」に修正
+  customer_rep?: string; 
   email?: string;
   phone?: string;
   status: string; 
   contract_type?: string; 
-  address?: string; // 👈 Supabaseの定義に修正
+  address?: string; 
   created_at?: string;
 }
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [name, setName] = useState('');
-  const [customerRep, setCustomerRep] = useState(''); // 👈 修正
+  const [customerRep, setCustomerRep] = useState(''); 
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [status, setStatus] = useState('検討中');
   const [contractType, setContractType] = useState('未定'); 
-  const [address, setAddress] = useState(''); // 👈 修正
+  const [address, setAddress] = useState(''); 
 
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [editForm, setEditForm] = useState<Partial<Customer>>({});
@@ -49,7 +49,6 @@ export default function CustomersPage() {
       return;
     }
 
-    // 👈 Supabaseの route.ts が受け取れる変数名に100%一致させます
     const payload = {
       name,
       customer_rep: customerRep || null,
@@ -91,7 +90,6 @@ export default function CustomersPage() {
     if (!editingCustomer) return;
 
     try {
-      // 👈 API(PATCH)の受け取り形式に完全一致
       const res = await fetch('/api/customers', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -129,7 +127,7 @@ export default function CustomersPage() {
     <div className="container" style={{ maxWidth: '100%' }}>
       <header style={{ marginBottom: '3rem' }}>
         <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>顧客マスタデータベース</h1>
-        <p style={{ color: 'var(--text-muted)' }}>取引状況ステータスおよび契約種別を分けて、詳細な顧客ポートフォリオを管理します。</p>
+        <p style={{ color: 'var(--text-muted)' }}>取引状況ステータスおよび契約種別を完全に分離して管理します。</p>
       </header>
 
       {/* 新規顧客登録フォーム */}
@@ -156,6 +154,7 @@ export default function CustomersPage() {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+            {/* 👈 【レイアウト復元】取引状況と現在の契約種別をきれいに横並びに分離 */}
             <div className="form-group">
               <label className="label">取引状況 (ステータス)</label>
               <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
@@ -196,6 +195,7 @@ export default function CustomersPage() {
               <th style={{ padding: '1rem' }}>担当者名</th>
               <th style={{ padding: '1rem' }}>メールアドレス</th>
               <th style={{ padding: '1rem' }}>電話番号</th>
+              {/* 👈 【表示復元】取引状況と契約種別を別々の独立した列として一覧に配置 */}
               <th style={{ padding: '1rem' }}>取引状況</th>
               <th style={{ padding: '1rem' }}>契約種別</th> 
               <th style={{ padding: '1rem', textAlign: 'right' }}>操作</th>
