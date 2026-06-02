@@ -45,7 +45,7 @@ export default function ProjectsPage() {
   // Form states
   const [name, setName] = useState('');
   const [customerId, setCustomerId] = useState('');
-  const [contractType, setContractType] = useState('単発'); // デフォルト値
+  const [contractType, setContractType] = useState('単発'); 
   const [status, setStatus] = useState('テレアポ');
   const [amount, setAmount] = useState<number | ''>('');
   const [orderDate, setOrderDate] = useState('');
@@ -57,7 +57,6 @@ export default function ProjectsPage() {
   const [productionWebhook, setProductionWebhook] = useState('');
   const [notes, setNotes] = useState('');
 
-  // 👈 【変更】年間契約の一覧表示に対応するため、初期選択を「すべて」または「単発」に
   const [activeTab, setActiveTab] = useState<'すべて' | '単発' | '月定額' | '年間契約'>('すべて');
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [editForm, setEditForm] = useState<Partial<Project>>({});
@@ -141,14 +140,21 @@ export default function ProjectsPage() {
     if (!editingProject) return;
 
     try {
-      const res = await fetch(`/api/projects?id=${editingProject.id}`, {
-        method: 'PUT',
+      // 👈 【大修正】API仕様(PATCH)に完全準拠。リクエストのBodyに案件ID（id）を明確にパッキングして送信
+      const res = await fetch('/api/projects', {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm)
+        body: JSON.stringify({
+          ...editForm,
+          id: editingProject.id // 👈 これが欠損していたため400番・500番エラーになっていました
+        })
       });
       if (res.ok) {
         setEditingProject(null);
         fetchData();
+      } else {
+        const errorData = await res.json();
+        alert(`更新に失敗しました: ${errorData.details || 'サーバーエラー'}`);
       }
     } catch (err) {
       console.error(err);
@@ -206,7 +212,6 @@ export default function ProjectsPage() {
     });
   };
 
-  // 👈 【変更】タブによるフィルタリングに「年間契約」を反映
   const filteredProjects = projects.filter(p => {
     if (activeTab === 'すべて') return true;
     return p.contract_type === activeTab;
@@ -248,7 +253,7 @@ export default function ProjectsPage() {
               <select className="input" value={contractType} onChange={(e) => setContractType(e.target.value)}>
                 <option value="単発">単発案件</option>
                 <option value="月定額">月額定額案件 (リカーリング)</option>
-                <option value="年間契約">年間契約案件</option> {/* 👈 追加 */}
+                <option value="年間契約">年間契約案件</option>
               </select>
             </div>
             <div className="form-group">
@@ -341,7 +346,7 @@ export default function ProjectsPage() {
               transition: 'all 0.2s'
             }}
           >
-            {tab === 'すべて' ? '📁 全案件表示' : tab === '単発' ? '🎯 単発契約一覧' : tab === '月定額' ? '🔄 月定額一覧' : '📆 年間契約一覧'} {/* 👈 表示名の追加 */}
+            {tab === 'すべて' ? '📁 全案件表示' : tab === '単発' ? '🎯 単発契約一覧' : tab === '月定額' ? '🔄 月定額一覧' : '📆 年間契約一覧'}
           </button>
         ))}
       </div>
@@ -426,7 +431,7 @@ export default function ProjectsPage() {
                   <select className="input" value={editForm.contract_type || '単発'} onChange={(e) => setEditForm({...editForm, contract_type: e.target.value})}>
                     <option value="単発">単発案件</option>
                     <option value="月定額">月額定額案件</option>
-                    <option value="年間契約">年間契約案件</option> {/* 👈 追加 */}
+                    <option value="年間契約">年間契約案件</option>
                   </select>
                 </div>
               </div>
