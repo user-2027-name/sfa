@@ -12,7 +12,7 @@ interface Alert {
 }
 
 export default function Home() {
-  const [stats, setStats] = useState({ projects: 0, customers: 0, employees: 0, totalRevenue: 0, totalForecast: 0 });
+  const [stats, setStats] = useState({ projects: 0, customers: 0, employees: 0, totalRevenue: 0, totalForecast: 0, totalAnnual: 0 }); // 💡 totalAnnual を追加
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [salesByMonth, setSalesByMonth] = useState<{ month: string, confirmed: number, forecast: number, annual: number }[]>([]);
   const [statusCounts, setStatusCounts] = useState<{ status: string, count: number }[]>([]);
@@ -36,12 +36,19 @@ export default function Home() {
       const customers = await cRes.json();
       const employees = await eRes.json();
 
+      // 💡 単発契約の確定分売上（受注・制作・完了）
       const totalRev = projects
-        .filter((p: any) => p.status === '受注' || p.status === '制作' || p.status === '完了')
+        .filter((p: any) => p.contract_type !== '年間契約' && (p.status === '受注' || p.status === '制作' || p.status === '完了'))
         .reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0);
 
+      // 💡 単発契約の見込み分売上（テレアポ・商談）
       const totalFore = projects
-        .filter((p: any) => p.status === 'テレアポ' || p.status === '商談')
+        .filter((p: any) => p.contract_type !== '年間契約' && (p.status === 'テレアポ' || p.status === '商談'))
+        .reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0);
+
+      // 💡 🌟 新設：年間契約案件の総額（失注以外すべてをストック資産として合算）
+      const totalAnnualAmount = projects
+        .filter((p: any) => p.contract_type === '年間契約' && p.status !== '失注')
         .reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0);
 
       setStats({
@@ -49,13 +56,12 @@ export default function Home() {
         customers: customers.length,
         employees: employees.length,
         totalRevenue: totalRev,
-        totalForecast: totalFore
+        totalForecast: totalFore,
+        totalAnnual: totalAnnualAmount // 💡 状態にセット
       });
 
-      // 💡 確定・見込みに加えて、年間契約（月割り）を保持するマップ構造
       const monthlyMap: Record<string, { confirmed: number, forecast: number, annual: number }> = {};
       
-      // グラフ表示用のベースとなる直近6ヶ月のキーを予め生成して初期化（年間契約の按分が過去や未来に綺麗に分散できるようにするため）
       const current = new Date();
       for (let i = 5; i >= 0; i--) {
         const d = new Date(current.getFullYear(), current.getMonth() - i, 1);
@@ -67,9 +73,8 @@ export default function Home() {
         const projectAmount = Number(p.amount || 0);
         const baseMonth = p.order_date ? p.order_date.substring(0, 7) : new Date().toISOString().substring(0, 7);
         
-        // 🌟 contract_type が '年間契約' の場合のみ12ヶ月に月割り（按分）して加算
         if (p.contract_type === '年間契約') {
-          if (p.status === '失注') return; // 失注は除外
+          if (p.status === '失注') return;
           
           const monthlyAmount = projectAmount / 12;
           const orderDate = p.order_date ? new Date(p.order_date) : new Date();
@@ -78,13 +83,11 @@ export default function Home() {
             const targetDate = new Date(orderDate.getFullYear(), orderDate.getMonth() + i, 1);
             const targetMonth = targetDate.toISOString().substring(0, 7);
             
-            // 直近6ヶ月の表示範囲内であれば按分金額を加算
             if (monthlyMap[targetMonth] !== undefined) {
               monthlyMap[targetMonth].annual += monthlyAmount;
             }
           }
         } else {
-          // 通常案件（単発契約）は今まで通り受注月に全額計上
           if (!monthlyMap[baseMonth]) {
             monthlyMap[baseMonth] = { confirmed: 0, forecast: 0, annual: 0 };
           }
@@ -97,7 +100,6 @@ export default function Home() {
         }
       });
 
-      // マップから配列に変換し、直近6ヶ月分をソートして確定
       const sortedMonths = Object.entries(monthlyMap)
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([month, data]) => ({
@@ -164,6 +166,7 @@ export default function Home() {
     let csvContent = '項目,値\n';
     csvContent += `累計成約額(確定),¥${stats.totalRevenue.toLocaleString()}\n`;
     csvContent += `見込み合計額,¥${stats.totalForecast.toLocaleString()}\n`;
+    csvContent += `年間契約総額,¥${stats.totalAnnual.toLocaleString()}\n`; // CSV出力にも追加
     csvContent += `稼働中案件数,${stats.projects}\n`;
     csvContent += `登録顧客数,${stats.customers}\n`;
     csvContent += `アラート数,${alerts.length}\n\n`;
@@ -194,7 +197,6 @@ export default function Home() {
 
   if (loading) return <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '80vh', fontSize: '1.2rem', color: 'var(--primary)' }}>Analyzing System Data...</div>;
 
-  // 💡 3つの値（確定・見込み・年間契約）の中から最大値を算出してグラフの上限を動的決定
   const maxSale = Math.max(...salesByMonth.map(s => Math.max(s.confirmed, s.forecast, s.annual)), 1);
 
   return (
@@ -212,27 +214,32 @@ export default function Home() {
         </div>
       </header>
 
-      {/* サマリーカード行 */}
-      <div className="grid-responsive desktop-stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', marginBottom: '3rem', gap: '1rem' }}>
+      {/* サマリーカード行：💡 5連から6連（repeat(6, 1fr)）に拡張し、年間契約総額を追加 */}
+      <div className="grid-responsive desktop-stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', marginBottom: '3rem', gap: '1rem' }}>
         <div className="glass-panel" style={{ borderTop: '4px solid var(--primary)' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>累計成約額（確定）</p>
-          <h2 style={{ fontSize: '1.6rem' }}>¥{(stats.totalRevenue / 10000).toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>万</span></h2>
+          <h2 style={{ fontSize: '1.4rem' }}>¥{(stats.totalRevenue / 10000).toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>万</span></h2>
         </div>
         <div className="glass-panel" style={{ borderTop: '4px solid #a855f7' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>進行中の見込み総額</p>
-          <h2 style={{ fontSize: '1.6rem' }}>¥{(stats.totalForecast / 10000).toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>万</span></h2>
+          <h2 style={{ fontSize: '1.4rem' }}>¥{(stats.totalForecast / 10000).toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>万</span></h2>
+        </div>
+        {/* 💡 🌟 新設カード：年間契約総額（ストック資産） */}
+        <div className="glass-panel" style={{ borderTop: '4px solid #34d399' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>年間契約総額</p>
+          <h2 style={{ fontSize: '1.4rem' }}>¥{(stats.totalAnnual / 10000).toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>万</span></h2>
         </div>
         <div className="glass-panel" style={{ borderTop: '4px solid var(--accent)' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>すべての登録案件数</p>
-          <h2 style={{ fontSize: '1.6rem' }}>{stats.projects} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>件</span></h2>
+          <h2 style={{ fontSize: '1.4rem' }}>{stats.projects} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>件</span></h2>
         </div>
         <div className="glass-panel" style={{ borderTop: '4px solid #ec4899' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>顧客数</p>
-          <h2 style={{ fontSize: '1.6rem' }}>{stats.customers} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>社</span></h2>
+          <h2 style={{ fontSize: '1.4rem' }}>{stats.customers} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>社</span></h2>
         </div>
         <div className="glass-panel" style={{ borderTop: '4px solid #f59e0b' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>アラート</p>
-          <h2 style={{ fontSize: '1.6rem', color: alerts.length > 0 ? 'var(--danger)' : 'var(--text)' }}>{alerts.length} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>件</span></h2>
+          <h2 style={{ fontSize: '1.4rem', color: alerts.length > 0 ? 'var(--danger)' : 'var(--text)' }}>{alerts.length} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>件</span></h2>
         </div>
       </div>
 
@@ -248,7 +255,6 @@ export default function Home() {
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                 <span style={{ display: 'inline-block', width: '12px', height: '12px', background: '#a855f7', borderRadius: '3px' }}></span> 見込み分
               </span>
-              {/* 💡 凡例に「年間契約」を追加 */}
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                 <span style={{ display: 'inline-block', width: '12px', height: '12px', background: 'var(--accent)', borderRadius: '3px' }}></span> 年間契約(按分)
               </span>
@@ -256,11 +262,9 @@ export default function Home() {
           </div>
           
           <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-            {/* 💡 バーが3本に増えたため、見切れを防ぐために最小幅(minWidth)を 460px から 540px に微調整 */}
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1.25rem', height: '260px', paddingBottom: '30px', paddingTop: '30px', width: '100%', minWidth: '540px', paddingLeft: '10px', paddingRight: '10px' }}>
               {salesByMonth.map((s, i) => (
                 <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
-                  {/* 💡 バーを3本並列表示するために gap を調整 */}
                   <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', width: '100%', height: '100%', justifyContent: 'center' }}>
                     
                     {/* 1. 確定分バー */}
@@ -295,7 +299,7 @@ export default function Home() {
                       )}
                     </div>
 
-                    {/* 3. 🌟 年間契約バー（エメラルドグリーン基調のグラデーション） */}
+                    {/* 3. 年間契約バー */}
                     <div style={{ 
                       width: '26%', 
                       height: `${(s.annual / maxSale) * 100}%`, 
@@ -438,6 +442,11 @@ export default function Home() {
       </div>
 
       <style jsx global>{`
+        @media (max-width: 1200px) {
+          .desktop-stats-row {
+            grid-template-columns: repeat(3, 1fr) !important; /* 中画面時は3列×2段に自動調整してカードの潰れを防止 */
+          }
+        }
         @media (max-width: 992px) {
           .desktop-3column-row {
             grid-template-columns: 1fr !important;
