@@ -14,7 +14,7 @@ interface Alert {
 export default function Home() {
   const [stats, setStats] = useState({ projects: 0, customers: 0, employees: 0, totalRevenue: 0, totalForecast: 0 });
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [salesByMonth, setSalesByMonth] = useState<{ month: string, confirmed: number, forecast: number }[]>([]);
+  const [salesByMonth, setSalesByMonth] = useState<{ month: string, confirmed: number, forecast: number, annual: number }[]>([]);
   const [statusCounts, setStatusCounts] = useState<{ status: string, count: number }[]>([]);
   const [funnel, setFunnel] = useState({ tele: 0, negotiation: 0, order: 0 });
   const [repWorkload, setRepWorkload] = useState<{ name: string, count: number }[]>([]);
@@ -52,27 +52,59 @@ export default function Home() {
         totalForecast: totalFore
       });
 
-      const monthlyMap: Record<string, { confirmed: number, forecast: number }> = {};
+      // 💡 確定・見込みに加えて、年間契約（月割り）を保持するマップ構造
+      const monthlyMap: Record<string, { confirmed: number, forecast: number, annual: number }> = {};
+      
+      // グラフ表示用のベースとなる直近6ヶ月のキーを予め生成して初期化（年間契約の按分が過去や未来に綺麗に分散できるようにするため）
+      const current = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(current.getFullYear(), current.getMonth() - i, 1);
+        const mKey = d.toISOString().substring(0, 7);
+        monthlyMap[mKey] = { confirmed: 0, forecast: 0, annual: 0 };
+      }
+
       projects.forEach((p: any) => {
-        const month = p.order_date ? p.order_date.substring(0, 7) : new Date().toISOString().substring(0, 7);
-        if (!monthlyMap[month]) {
-          monthlyMap[month] = { confirmed: 0, forecast: 0 };
-        }
-        
         const projectAmount = Number(p.amount || 0);
-        if (p.status === '受注' || p.status === '制作' || p.status === '完了') {
-          monthlyMap[month].confirmed += projectAmount;
-        } else if (p.status === 'テレアポ' || p.status === '商談') {
-          monthlyMap[month].forecast += projectAmount;
+        const baseMonth = p.order_date ? p.order_date.substring(0, 7) : new Date().toISOString().substring(0, 7);
+        
+        // 🌟 contract_type が '年間契約' の場合のみ12ヶ月に月割り（按分）して加算
+        if (p.contract_type === '年間契約') {
+          if (p.status === '失注') return; // 失注は除外
+          
+          const monthlyAmount = projectAmount / 12;
+          const orderDate = p.order_date ? new Date(p.order_date) : new Date();
+          
+          for (let i = 0; i < 12; i++) {
+            const targetDate = new Date(orderDate.getFullYear(), orderDate.getMonth() + i, 1);
+            const targetMonth = targetDate.toISOString().substring(0, 7);
+            
+            // 直近6ヶ月の表示範囲内であれば按分金額を加算
+            if (monthlyMap[targetMonth] !== undefined) {
+              monthlyMap[targetMonth].annual += monthlyAmount;
+            }
+          }
+        } else {
+          // 通常案件（単発契約）は今まで通り受注月に全額計上
+          if (!monthlyMap[baseMonth]) {
+            monthlyMap[baseMonth] = { confirmed: 0, forecast: 0, annual: 0 };
+          }
+          
+          if (p.status === '受注' || p.status === '制作' || p.status === '完了') {
+            monthlyMap[baseMonth].confirmed += projectAmount;
+          } else if (p.status === 'テレアポ' || p.status === '商談') {
+            monthlyMap[baseMonth].forecast += projectAmount;
+          }
         }
       });
 
+      // マップから配列に変換し、直近6ヶ月分をソートして確定
       const sortedMonths = Object.entries(monthlyMap)
-        .sort()
+        .sort(([a], [b]) => a.localeCompare(b))
         .map(([month, data]) => ({
           month,
           confirmed: data.confirmed,
-          forecast: data.forecast
+          forecast: data.forecast,
+          annual: data.annual
         }))
         .slice(-6);
 
@@ -136,9 +168,9 @@ export default function Home() {
     csvContent += `登録顧客数,${stats.customers}\n`;
     csvContent += `アラート数,${alerts.length}\n\n`;
     
-    csvContent += '月別売上推移,確定金額,見込み金額\n';
+    csvContent += '月別売上推移,確定金額,見込み金額,年間契約(按分)\n';
     salesByMonth.forEach(s => {
-      csvContent += `${s.month},${s.confirmed},${s.forecast}\n`;
+      csvContent += `${s.month},${s.confirmed},${s.forecast},${s.annual}\n`;
     });
     
     csvContent += '\n案件ステータス分布,件数\n';
@@ -162,7 +194,8 @@ export default function Home() {
 
   if (loading) return <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '80vh', fontSize: '1.2rem', color: 'var(--primary)' }}>Analyzing System Data...</div>;
 
-  const maxSale = Math.max(...salesByMonth.map(s => Math.max(s.confirmed, s.forecast)), 1);
+  // 💡 3つの値（確定・見込み・年間契約）の中から最大値を算出してグラフの上限を動的決定
+  const maxSale = Math.max(...salesByMonth.map(s => Math.max(s.confirmed, s.forecast, s.annual)), 1);
 
   return (
     <div className="container" style={{ maxWidth: '100%' }}>
@@ -215,44 +248,69 @@ export default function Home() {
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                 <span style={{ display: 'inline-block', width: '12px', height: '12px', background: '#a855f7', borderRadius: '3px' }}></span> 見込み分
               </span>
+              {/* 💡 凡例に「年間契約」を追加 */}
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <span style={{ display: 'inline-block', width: '12px', height: '12px', background: 'var(--accent)', borderRadius: '3px' }}></span> 年間契約(按分)
+              </span>
             </div>
           </div>
           
           <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1.5rem', height: '260px', paddingBottom: '30px', paddingTop: '30px', width: '100%', minWidth: '460px', paddingLeft: '10px', paddingRight: '10px' }}>
+            {/* 💡 バーが3本に増えたため、見切れを防ぐために最小幅(minWidth)を 460px から 540px に微調整 */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1.25rem', height: '260px', paddingBottom: '30px', paddingTop: '30px', width: '100%', minWidth: '540px', paddingLeft: '10px', paddingRight: '10px' }}>
               {salesByMonth.map((s, i) => (
                 <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', width: '100%', height: '100%', justifyContent: 'center' }}>
+                  {/* 💡 バーを3本並列表示するために gap を調整 */}
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', width: '100%', height: '100%', justifyContent: 'center' }}>
+                    
+                    {/* 1. 確定分バー */}
                     <div style={{ 
-                      width: '35%', 
+                      width: '26%', 
                       height: `${(s.confirmed / maxSale) * 100}%`, 
-                      background: 'linear-gradient(to top, var(--primary), var(--accent))',
+                      background: 'linear-gradient(to top, var(--primary), #2563eb)',
                       borderRadius: '4px 4px 0 0',
                       position: 'relative',
                       boxShadow: '0 0 10px rgba(59, 130, 246, 0.1)'
                     }}>
-                      {/* ⚠️ 確定分の金額：四捨五入を排除して正確な万単位で表示 */}
                       {s.confirmed > 0 && (
-                        <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
+                        <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.6rem', fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
                           ¥{(Math.round(s.confirmed) / 10000).toLocaleString()}万
                         </div>
                       )}
                     </div>
+
+                    {/* 2. 見込み分バー */}
                     <div style={{ 
-                      width: '35%', 
+                      width: '26%', 
                       height: `${(s.forecast / maxSale) * 100}%`, 
                       background: 'linear-gradient(to top, #a855f7, #c084fc)',
                       borderRadius: '4px 4px 0 0',
                       position: 'relative',
                       boxShadow: '0 0 10px rgba(168, 85, 247, 0.1)'
                     }}>
-                      {/* ⚠️ 見込み分の金額：四捨五入を排除して正確な万単位で表示 */}
                       {s.forecast > 0 && (
-                        <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.65rem', fontWeight: 700, color: '#a855f7', whiteSpace: 'nowrap' }}>
+                        <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.6rem', fontWeight: 700, color: '#a855f7', whiteSpace: 'nowrap' }}>
                           ¥{(Math.round(s.forecast) / 10000).toLocaleString()}万
                         </div>
                       )}
                     </div>
+
+                    {/* 3. 🌟 年間契約バー（エメラルドグリーン基調のグラデーション） */}
+                    <div style={{ 
+                      width: '26%', 
+                      height: `${(s.annual / maxSale) * 100}%`, 
+                      background: 'linear-gradient(to top, var(--accent), #34d399)',
+                      borderRadius: '4px 4px 0 0',
+                      position: 'relative',
+                      boxShadow: '0 0 10px rgba(16, 185, 129, 0.1)'
+                    }}>
+                      {s.annual > 0 && (
+                        <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.6rem', fontWeight: 700, color: 'var(--accent)', whiteSpace: 'nowrap' }}>
+                          ¥{(Math.round(s.annual) / 10000).toLocaleString()}万
+                        </div>
+                      )}
+                    </div>
+
                   </div>
                   <div style={{ marginTop: '1rem', fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-muted)' }}>{s.month.split('-')[1]}月</div>
                 </div>
