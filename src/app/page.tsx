@@ -231,18 +231,12 @@ export default function Home() {
                       position: 'relative',
                       boxShadow: '0 0 10px rgba(59, 130, 246, 0.1)'
                     }}>
-                     {/* 修正後：四捨五入を排除し、正確な万単位（例: ¥12.5万）にする */}
-{s.confirmed > 0 && (
-  <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
-    ¥{(Math.round(s.confirmed) / 10000).toLocaleString()}万
-  </div>
-)}
-...
-{s.forecast > 0 && (
-  <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.65rem', fontWeight: 700, color: '#a855f7', whiteSpace: 'nowrap' }}>
-    ¥{(Math.round(s.forecast) / 10000).toLocaleString()}万
-  </div>
-)}
+                      {/* ⚠️ 確定分の金額：四捨五入を排除して正確な万単位で表示 */}
+                      {s.confirmed > 0 && (
+                        <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
+                          ¥{(Math.round(s.confirmed) / 10000).toLocaleString()}万
+                        </div>
+                      )}
                     </div>
                     <div style={{ 
                       width: '35%', 
@@ -252,9 +246,10 @@ export default function Home() {
                       position: 'relative',
                       boxShadow: '0 0 10px rgba(168, 85, 247, 0.1)'
                     }}>
+                      {/* ⚠️ 見込み分の金額：四捨五入を排除して正確な万単位で表示 */}
                       {s.forecast > 0 && (
                         <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.65rem', fontWeight: 700, color: '#a855f7', whiteSpace: 'nowrap' }}>
-                          ¥{(s.forecast / 10000).toFixed(0)}万
+                          ¥{(Math.round(s.forecast) / 10000).toLocaleString()}万
                         </div>
                       )}
                     </div>
@@ -290,7 +285,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 👈 【修正ポイント】ファンネル、緊急対応、担当者別進捗状況を等幅(1fr)の3列グリッドに完全に統合 */}
       <div className="grid-responsive desktop-3column-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2rem', marginBottom: '2rem' }}>
         
         {/* 1カラム目: セールスファンネル */}
@@ -388,7 +382,7 @@ export default function Home() {
       <style jsx global>{`
         @media (max-width: 992px) {
           .desktop-3column-row {
-            grid-template-columns: 1fr !important; /* タブレット以下では縦に並べる */
+            grid-template-columns: 1fr !important;
           }
         }
         @media (max-width: 768px) {
