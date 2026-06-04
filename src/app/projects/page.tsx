@@ -46,7 +46,7 @@ export default function ProjectsPage() {
   // Form states
   const [name, setName] = useState('');
   const [customerId, setCustomerId] = useState('');
-  const [contractType, setContractType] = useState('単発'); 
+  const [contractType, setContractType] = useState('単発'); // 💡 初期値をダッシュボードと揃えます
   const [status, setStatus] = useState('テレアポ');
   const [amount, setAmount] = useState<number | ''>('');
   const [orderDate, setOrderDate] = useState('');
@@ -60,8 +60,9 @@ export default function ProjectsPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null); // 👈 【新設】現在削除処理中の案件IDを管理
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // 💡 タブの型定義をダッシュボードの文字列「年間契約」と完全一致させます
   const [activeTab, setActiveTab] = useState<'すべて' | '単発' | '月定額' | '年間契約'>('すべて');
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [editForm, setEditForm] = useState<Partial<Project>>({});
@@ -97,7 +98,7 @@ export default function ProjectsPage() {
     const payload = {
       name,
       customer_id: Number(customerId),
-      contract_type: contractType,
+      contract_type: contractType, // フォームの選択値（'単発' | '月定額' | '年間契約'）がそのまま送信されます
       status,
       amount: amount === '' ? 0 : Number(amount),
       order_date: orderDate || new Date().toISOString().split('T')[0],
@@ -182,7 +183,7 @@ export default function ProjectsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('この案件を削除してもよろしいですか？')) return;
     
-    setDeletingId(id); // 👈 削除ローディング開始！
+    setDeletingId(id); 
 
     try {
       const res = await fetch(`/api/projects?id=${id}`, { method: 'DELETE' });
@@ -196,7 +197,7 @@ export default function ProjectsPage() {
       console.error(err);
       toast.error('通信エラーが発生しました', { position: 'top-center' });
     } finally {
-      setDeletingId(null); // 👈 削除ローディング終了
+      setDeletingId(null); 
     }
   };
 
@@ -204,16 +205,22 @@ export default function ProjectsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-     Papa.parse(file, {
+ papa.parse(file, {
       header: true,
       skipEmptyLines: true,
       complete: async (results) => {
         let successCount = 0;
         for (const row of results.data as any[]) {
+          // CSVの表記が「年間契約案件」などの揺れがあっても「年間契約」に自動補正するガードレールロジック
+          let csvContractType = row['契約種別'] || '単発';
+          if (csvContractType.includes('年間')) {
+            csvContractType = '年間契約';
+          }
+
           const payload = {
             name: row['案件名'],
             customer_id: Number(row['顧客ID']),
-            contract_type: row['契約種別'] || '単発',
+            contract_type: csvContractType,
             status: row['ステータス'] || 'テレアポ',
             amount: Number(row['金額'] || 0),
             order_date: row['受注日'] || new Date().toISOString().split('T')[0],
@@ -282,7 +289,7 @@ export default function ProjectsPage() {
               <select className="input" value={contractType} onChange={(e) => setContractType(e.target.value)} disabled={isSubmitting}>
                 <option value="単発">単発案件</option>
                 <option value="月定額">月額定額案件 (リカーリング)</option>
-                <option value="年間契約">年間契約案件</option>
+                <option value="年間契約">年間契約案件</option> {/* 💡 value="年間契約" で値が確定するように維持 */}
               </select>
             </div>
             <div className="form-group">
@@ -439,9 +446,7 @@ export default function ProjectsPage() {
                 <td style={{ padding: '1rem' }}>{p.sales_rep_name || '未指定'}</td>
                 <td style={{ padding: '1rem' }}>{p.production_rep_name || '未指定'}</td>
                 <td style={{ padding: '1rem', textAlign: 'right' }}>
-                  {/* 👈 【修正】削除処理中は編集ボタンを無効化 */}
                   <button className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', marginRight: '0.5rem' }} onClick={() => handleEditClick(p)} disabled={deletingId !== null}>編集</button>
-                  {/* 👈 【修正】削除処理中のローディング制御を適用 */}
                   <button 
                     className="btn" 
                     style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', opacity: deletingId !== null ? 0.5 : 1 }} 
@@ -478,7 +483,7 @@ export default function ProjectsPage() {
                   <select className="input" value={editForm.contract_type || '単発'} onChange={(e) => setEditForm({...editForm, contract_type: e.target.value})} disabled={isUpdating}>
                     <option value="単発">単発案件</option>
                     <option value="月定額">月額定額案件</option>
-                    <option value="年間契約">年間契約案件</option>
+                    <option value="年間契約">年間契約案件</option> {/* 💡 モーダル内のセレクトボックスも整合性を保持 */}
                   </select>
                 </div>
               </div>
