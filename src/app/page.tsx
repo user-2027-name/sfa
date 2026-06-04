@@ -12,7 +12,7 @@ interface Alert {
 }
 
 export default function Home() {
-  const [stats, setStats] = useState({ projects: 0, customers: 0, employees: 0, totalRevenue: 0, totalForecast: 0, totalAnnual: 0 }); // 💡 totalAnnual を追加
+  const [stats, setStats] = useState({ projects: 0, customers: 0, employees: 0, totalRevenue: 0, totalForecast: 0, totalAnnual: 0 }); 
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [salesByMonth, setSalesByMonth] = useState<{ month: string, confirmed: number, forecast: number, annual: number }[]>([]);
   const [statusCounts, setStatusCounts] = useState<{ status: string, count: number }[]>([]);
@@ -36,17 +36,14 @@ export default function Home() {
       const customers = await cRes.json();
       const employees = await eRes.json();
 
-      // 💡 単発契約の確定分売上（受注・制作・完了）
       const totalRev = projects
         .filter((p: any) => p.contract_type !== '年間契約' && (p.status === '受注' || p.status === '制作' || p.status === '完了'))
         .reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0);
 
-      // 💡 単発契約の見込み分売上（テレアポ・商談）
       const totalFore = projects
         .filter((p: any) => p.contract_type !== '年間契約' && (p.status === 'テレアポ' || p.status === '商談'))
         .reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0);
 
-      // 💡 🌟 新設：年間契約案件の総額（失注以外すべてをストック資産として合算）
       const totalAnnualAmount = projects
         .filter((p: any) => p.contract_type === '年間契約' && p.status !== '失注')
         .reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0);
@@ -57,7 +54,7 @@ export default function Home() {
         employees: employees.length,
         totalRevenue: totalRev,
         totalForecast: totalFore,
-        totalAnnual: totalAnnualAmount // 💡 状態にセット
+        totalAnnual: totalAnnualAmount 
       });
 
       const monthlyMap: Record<string, { confirmed: number, forecast: number, annual: number }> = {};
@@ -166,7 +163,7 @@ export default function Home() {
     let csvContent = '項目,値\n';
     csvContent += `累計成約額(確定),¥${stats.totalRevenue.toLocaleString()}\n`;
     csvContent += `見込み合計額,¥${stats.totalForecast.toLocaleString()}\n`;
-    csvContent += `年間契約総額,¥${stats.totalAnnual.toLocaleString()}\n`; // CSV出力にも追加
+    csvContent += `年間契約総額,¥${stats.totalAnnual.toLocaleString()}\n`;
     csvContent += `稼働中案件数,${stats.projects}\n`;
     csvContent += `登録顧客数,${stats.customers}\n`;
     csvContent += `アラート数,${alerts.length}\n\n`;
@@ -214,8 +211,8 @@ export default function Home() {
         </div>
       </header>
 
-      {/* サマリーカード行：💡 5連から6連（repeat(6, 1fr)）に拡張し、年間契約総額を追加 */}
-      <div className="grid-responsive desktop-stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', marginBottom: '3rem', gap: '1rem' }}>
+      {/* サマリーカード行：PCサイズで確実に6列（repeat(6, 1fr)）並ぶよう固定指定 */}
+      <div className="desktop-stats-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', marginBottom: '3rem', gap: '1rem' }}>
         <div className="glass-panel" style={{ borderTop: '4px solid var(--primary)' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>累計成約額（確定）</p>
           <h2 style={{ fontSize: '1.4rem' }}>¥{(stats.totalRevenue / 10000).toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>万</span></h2>
@@ -224,7 +221,6 @@ export default function Home() {
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>進行中の見込み総額</p>
           <h2 style={{ fontSize: '1.4rem' }}>¥{(stats.totalForecast / 10000).toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>万</span></h2>
         </div>
-        {/* 💡 🌟 新設カード：年間契約総額（ストック資産） */}
         <div className="glass-panel" style={{ borderTop: '4px solid #34d399' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.5rem' }}>年間契約総額</p>
           <h2 style={{ fontSize: '1.4rem' }}>¥{(stats.totalAnnual / 10000).toLocaleString()} <span style={{ fontSize: '0.8rem', fontWeight: 400 }}>万</span></h2>
@@ -442,9 +438,16 @@ export default function Home() {
       </div>
 
       <style jsx global>{`
-        @media (max-width: 1200px) {
+        /* 💡 画面幅1400px以下の時はカードが窮屈にならないよう3列×2段に折りたたむ（ブレイクポイントの最適化） */
+        @media (max-width: 1400px) {
           .desktop-stats-row {
-            grid-template-columns: repeat(3, 1fr) !important; /* 中画面時は3列×2段に自動調整してカードの潰れを防止 */
+            grid-template-columns: repeat(3, 1fr) !important;
+          }
+        }
+        /* 💡 タブレットサイズ（1024px以下）では2列×3段に調整 */
+        @media (max-width: 1024px) {
+          .desktop-stats-row {
+            grid-template-columns: repeat(2, 1fr) !important;
           }
         }
         @media (max-width: 992px) {
