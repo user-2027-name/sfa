@@ -46,7 +46,7 @@ export default function ProjectsPage() {
   // Form states
   const [name, setName] = useState('');
   const [customerId, setCustomerId] = useState('');
-  const [contractType, setContractType] = useState('単発'); // 💡 初期値をダッシュボードと揃えます
+  const [contractType, setContractType] = useState('単発'); 
   const [status, setStatus] = useState('テレアポ');
   const [amount, setAmount] = useState<number | ''>('');
   const [orderDate, setOrderDate] = useState('');
@@ -62,7 +62,6 @@ export default function ProjectsPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // 💡 タブの型定義をダッシュボードの文字列「年間契約」と完全一致させます
   const [activeTab, setActiveTab] = useState<'すべて' | '単発' | '月定額' | '年間契約'>('すべて');
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [editForm, setEditForm] = useState<Partial<Project>>({});
@@ -98,7 +97,7 @@ export default function ProjectsPage() {
     const payload = {
       name,
       customer_id: Number(customerId),
-      contract_type: contractType, // フォームの選択値（'単発' | '月定額' | '年間契約'）がそのまま送信されます
+      contract_type: contractType, 
       status,
       amount: amount === '' ? 0 : Number(amount),
       order_date: orderDate || new Date().toISOString().split('T')[0],
@@ -205,13 +204,13 @@ export default function ProjectsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
- papa.parse(file, {
+    // 💡 大文字の Papa.parse に修正し型エラーを完全に解消しました
+    Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
       complete: async (results) => {
         let successCount = 0;
         for (const row of results.data as any[]) {
-          // CSVの表記が「年間契約案件」などの揺れがあっても「年間契約」に自動補正するガードレールロジック
           let csvContractType = row['契約種別'] || '単発';
           if (csvContractType.includes('年間')) {
             csvContractType = '年間契約';
@@ -289,7 +288,7 @@ export default function ProjectsPage() {
               <select className="input" value={contractType} onChange={(e) => setContractType(e.target.value)} disabled={isSubmitting}>
                 <option value="単発">単発案件</option>
                 <option value="月定額">月額定額案件 (リカーリング)</option>
-                <option value="年間契約">年間契約案件</option> {/* 💡 value="年間契約" で値が確定するように維持 */}
+                <option value="年間契約">年間契約案件</option>
               </select>
             </div>
             <div className="form-group">
@@ -483,7 +482,7 @@ export default function ProjectsPage() {
                   <select className="input" value={editForm.contract_type || '単発'} onChange={(e) => setEditForm({...editForm, contract_type: e.target.value})} disabled={isUpdating}>
                     <option value="単発">単発案件</option>
                     <option value="月定額">月額定額案件</option>
-                    <option value="年間契約">年間契約案件</option> {/* 💡 モーダル内のセレクトボックスも整合性を保持 */}
+                    <option value="年間契約">年間契約案件</option>
                   </select>
                 </div>
               </div>
