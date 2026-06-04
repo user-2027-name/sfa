@@ -231,11 +231,18 @@ export default function Home() {
                       position: 'relative',
                       boxShadow: '0 0 10px rgba(59, 130, 246, 0.1)'
                     }}>
-                      {s.confirmed > 0 && (
-                        <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
-                          ¥{(s.confirmed / 10000).toFixed(0)}万
-                        </div>
-                      )}
+                     {/* 修正後：四捨五入を排除し、正確な万単位（例: ¥12.5万）にする */}
+{s.confirmed > 0 && (
+  <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
+    ¥{(Math.round(s.confirmed) / 10000).toLocaleString()}万
+  </div>
+)}
+...
+{s.forecast > 0 && (
+  <div style={{ position: 'absolute', top: '-22px', width: '100%', textAlign: 'center', fontSize: '0.65rem', fontWeight: 700, color: '#a855f7', whiteSpace: 'nowrap' }}>
+    ¥{(Math.round(s.forecast) / 10000).toLocaleString()}万
+  </div>
+)}
                     </div>
                     <div style={{ 
                       width: '35%', 
